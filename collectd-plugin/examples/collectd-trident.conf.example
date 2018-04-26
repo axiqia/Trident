@@ -1,0 +1,12 @@
+TypesDB "/usr/share/collectd/trident_types.db"
+
+<LoadPlugin python>
+    Globals true
+</LoadPlugin>
+
+<Plugin "python">
+  ModulePath "/usr/lib/python2.7/site-packages"
+  LogTraces true
+  Interactive false
+  Import "collectd_trident"
+</Plugin>

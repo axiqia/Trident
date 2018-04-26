@@ -1,0 +1,11 @@
+trident_inst	value:ABSOLUTE:U:U
+trident_cyc	value:ABSOLUTE:U:U
+trident_idq_uops_not_delv_core	value:ABSOLUTE:U:U
+trident_uops_issued	value:ABSOLUTE:U:U
+trident_uops_retired	value:ABSOLUTE:U:U
+trident_int_misc_recovery_cycles	value:ABSOLUTE:U:U
+trident_read_bw__mib_	channel0:ABSOLUTE:U:U, channel1:ABSOLUTE:U:U, channel2:ABSOLUTE:U:U, channel3:ABSOLUTE:U:U
+trident_write_bw__mib_	channel0:ABSOLUTE:U:U, channel1:ABSOLUTE:U:U, channel2:ABSOLUTE:U:U, channel3:ABSOLUTE:U:U
+trident_page_miss_conflict	channel0:ABSOLUTE:U:U, channel1:ABSOLUTE:U:U, channel2:ABSOLUTE:U:U, channel3:ABSOLUTE:U:U
+trident_page_open_act	channel0:ABSOLUTE:U:U, channel1:ABSOLUTE:U:U, channel2:ABSOLUTE:U:U, channel3:ABSOLUTE:U:U
+trident_uops_exec	port0:ABSOLUTE:U:U, port1:ABSOLUTE:U:U, port2:ABSOLUTE:U:U, port3:ABSOLUTE:U:U, port4:ABSOLUTE:U:U, port5:ABSOLUTE:U:U, port6:ABSOLUTE:U:U, port7:ABSOLUTE:U:U
