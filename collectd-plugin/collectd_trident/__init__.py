@@ -80,6 +80,11 @@ def linebyline_generator(fd):
 #
 
 class Trident:
+  # class variables
+  sock_pattern = re.compile(r"\bS([0-9]+)\b")
+  cp_pattern = re.compile(r"\b[CP]([0-9]+)\b")
+  epochdate = datetime.datetime(1970,1,1,0,0,0,tzinfo=pytz.UTC)
+
   def plugin_config_method(self,config):
     ''' Take configuration options
     '''
@@ -100,12 +105,9 @@ class Trident:
     '''
 
     self.needheadings = True
-    self.headings = []
-    self.sock_pattern = re.compile(r"\bS([0-9]+)\b")
-    self.cp_pattern = re.compile(r"\b[CP]([0-9]+)\b")
+    self.headings = ()
     self.fifofd = -1
     self.fifoitr = None
-    self.epochdate = datetime.datetime(1970,1,1,0,0,0,tzinfo=pytz.UTC)
     self.lastts = None
     self.interval = 10
     self.headingspath = '/tmp/tridentheadings'
@@ -149,14 +151,14 @@ class Trident:
     value = long(float(value))
     sockn = None
     validx = 0
-    res = self.sock_pattern.search(header)
+    res = Trident.sock_pattern.search(header)
     if res:
       sockn = int(res.group(1))
-      header = self.sock_pattern.sub('',header).strip()
-    res = self.cp_pattern.search(header)
+      header = Trident.sock_pattern.sub('',header).strip()
+    res = Trident.cp_pattern.search(header)
     if res:
       validx = int(res.group(1))
-      header = self.cp_pattern.sub('',header).strip()
+      header = Trident.cp_pattern.sub('',header).strip()
 
     a = []
     if header in grouped:
@@ -179,7 +181,7 @@ class Trident:
     '''
 
     interval = self.interval
-    timestamp = int((dateutil.parser.parse(val) - self.epochdate).total_seconds())
+    timestamp = int((dateutil.parser.parse(val) - Trident.epochdate).total_seconds())
     if self.lastts:
       if timestamp - self.lastts <= 300:
         interval = timestamp - self.lastts
