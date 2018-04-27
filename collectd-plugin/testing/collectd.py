@@ -6,8 +6,9 @@ class Values:
     self.time = 0
     self.type = ''
     self.type_instance = ''
+    self.interval = 0
     for key, val in kwargs.iteritems():
       self.__dict__.update({key: val});
 
   def dispatch(self,**kwargs):
-    print 'here type=',self.type,' type_instance=',self.type_instance,' values=',self.values,' timestamp=', self.time
+    print 'here type=',self.type,' type_instance=',self.type_instance,' values=',self.values,' timestamp=', self.time, ' interval=',self.interval

@@ -1,6 +1,6 @@
 #!/usr/bin/python
 #===============================================================================
-# collectd-trident - a collectd python plugin to consume trident measurments
+# collectd-trident - a collectd python plugin to consume trident measurements
 #
 # (C) Copyright 2018 CERN. This software is distributed under the terms of the
 # GNU General Public Licence version 3 (GPL Version 3), copied verbatim in the
@@ -97,7 +97,7 @@ class Trident:
       elif key == 'headings':
         self.headingspath = val
       elif key == 'interval':
-        self.interval = int(val)
+        self.default_interval = int(val)
 
 
   def plugin_init_method(self):
@@ -109,7 +109,7 @@ class Trident:
     self.fifofd = -1
     self.fifoitr = None
     self.lastts = None
-    self.interval = 10
+    self.default_interval = 10
     self.headingspath = '/tmp/tridentheadings'
     self.fifopath = '/tmp/tridentfifo'
 
@@ -180,7 +180,7 @@ class Trident:
     ''' convert timestamp value to epoch and deduce interval represented
     '''
 
-    interval = self.interval
+    interval = None
     timestamp = int((dateutil.parser.parse(val) - Trident.epochdate).total_seconds())
     if self.lastts:
       if timestamp - self.lastts <= 300:
@@ -194,12 +194,15 @@ class Trident:
 
     assert len(rawvals) == len(self.headings)
     timestamp = None
+    interval = None
     grouped = {}
     for h,v in zip(self.headings, rawvals):
       if Trident.__isTimestamp(h):
         try:
-          timestamp, self.interval = self.__findStampAndInterval(v)
+          timestamp, interval = self.__findStampAndInterval(v)
           self.lastts = timestamp
+          if not interval:
+            interval = self.default_interval
         except:
           continue
       else:
@@ -215,8 +218,8 @@ class Trident:
         if timestamp != None:
           val.time = timestamp
         val.plugin = 'trident'
-        if self.interval:
-          val.interval = self.interval
+        if interval:
+          val.interval = interval
         val.values = v
         collectd_values.append(val)
     return collectd_values
@@ -294,7 +297,7 @@ if __name__ == "__main__":
   while True:
     print 'calling plugin_init()'
     plugin_init()
-    for i in range(1,10):
+    for i in range(1,30):
       print 'starting loop calling read_method()'
       plugin_read()
       time.sleep(1)
