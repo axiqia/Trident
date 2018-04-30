@@ -82,7 +82,7 @@ def linebyline_generator(fd):
 class Trident:
   # class variables
   sock_pattern = re.compile(r"\bS([0-9]+)\b")
-  cp_pattern = re.compile(r"\b[CP]([0-9]+)\b")
+  cp_pattern = re.compile(r"\b([CP])([0-9]+)\b")
   epochdate = datetime.datetime(1970,1,1,0,0,0,tzinfo=pytz.UTC)
 
   def plugin_config_method(self,config):
@@ -112,6 +112,21 @@ class Trident:
     self.default_interval = 10
     self.headingspath = '/tmp/tridentheadings'
     self.fifopath = '/tmp/tridentfifo'
+
+
+  @staticmethod
+  def __headingFixedGroupSize(h):
+    ''' the length of the values set that should be returned for
+        the type associated to this heading
+    '''
+    gs = 1
+    res = Trident.cp_pattern.search(h)
+    if res:
+      if res.group(1) == 'C':
+        gs = 4
+      elif res.group(1) == 'P':
+        gs = 8
+    return gs
 
 
   def __read_headings(self):
@@ -151,30 +166,35 @@ class Trident:
     value = long(float(value))
     sockn = None
     validx = 0
+    groupsize = Trident.__headingFixedGroupSize(header)
+
     res = Trident.sock_pattern.search(header)
     if res:
       sockn = int(res.group(1))
       header = Trident.sock_pattern.sub('',header).strip()
     res = Trident.cp_pattern.search(header)
     if res:
-      validx = int(res.group(1))
+      validx = int(res.group(2))
       header = Trident.cp_pattern.sub('',header).strip()
 
-    a = []
+    grpnum = int(validx / groupsize)
+    validx = validx % groupsize
+    a = [None] * groupsize
+
     if header in grouped:
       x = grouped[header]
       if sockn in x:
-        a = x[sockn]
+        xx = x[sockn]
+        if grpnum in xx:
+          a = xx[grpnum]
+        else:
+          xx[grpnum] = a
       else:
-        grouped[header][sockn] = a
+        x[sockn] = { grpnum: a }
     else:
-      grouped[header] = { sockn: a }
-    if validx < len(a):
-        a[validx] = value
-    else:
-      l = validx - len(a)
-      a.extend([None] * l)
-      a.append(value)
+      grouped[header] = { sockn: { grpnum: a } }
+    assert(validx < len(a))
+    a[validx] = value
 
   def __findStampAndInterval(self,val):
     ''' convert timestamp value to epoch and deduce interval represented
@@ -211,17 +231,24 @@ class Trident:
     collectd_values = []
     for h in grouped:
       for sockn in grouped[h]:
-        v = grouped[h][sockn]
-        val = collectd.Values(type=Trident.__heading_to_type(h))
-        if sockn != None:
-          val.type_instance='socket ' + str(sockn)
-        if timestamp != None:
-          val.time = timestamp
-        val.plugin = 'trident'
-        if interval:
-          val.interval = interval
-        val.values = v
-        collectd_values.append(val)
+        xx = grouped[h][sockn]
+        for grpnum in xx:
+          v = xx[grpnum]
+          val = collectd.Values(type=Trident.__heading_to_type(h))
+          val.type_instance = ''
+          if sockn != None:
+            val.type_instance += 'socket ' + str(sockn)
+          if grpnum > 0:
+            if len(val.type_instance)>0:
+              val.type_instance += ' '
+            val.type_instance += 'extended-set ' + str(grpnum+1)
+          if timestamp != None:
+            val.time = timestamp
+          val.plugin = 'trident'
+          if interval:
+            val.interval = interval
+          val.values = v
+          collectd_values.append(val)
     return collectd_values
 
 
