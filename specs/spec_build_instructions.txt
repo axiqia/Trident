@@ -1,0 +1,8 @@
+#Change the /dev/shm/RPM_BUILD to whichever tmp directory to build the rpm
+rpmbuild --define '_topdir /dev/shm/RPM_BUILD' -bb --clean <whatever>.spec
+
+#Install at /tmp/local
+sudo rpm --relocate /local=/tmp/local -ivh /dev/shm/RPM_BUILD/RPMS/x86_64/<whatever>.rpm
+
+#Uninstall the package at /tmp/local/bin
+sudo rpm -e <whatever>
