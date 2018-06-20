@@ -1,6 +1,7 @@
 #!/bin/bash
 # $1 - LOGFILE
 # $2 - BINWIDTH
+# $3 - DURATION
 
 
 #Intel Top-Down uArch Analysis
@@ -11,13 +12,8 @@
 #retiring = uops_retired_slots / slots;
 #be_bound = 1 - fe_bound - bad_spec - retiring;
 
-SCALE=$2;
-DURATION=1;
-
-if (( SCALE == 0 )) 
-then 
-SCALE=1 
-fi
+SCALE=${2:-1}
+DURATION=${3:-1}
 
 echo "\"Timestamp\"; \"slots s0\"; \"fe bound s0\"; \"bad spec s0\"; \"retiring s0\"; \"be bound s0\"; \
 \"slots s1\"; \"fe bound s1\"; \"bad spec s1\"; \"retiring s1\"; \"be bound s1\"; \
@@ -188,6 +184,7 @@ awk -F ";" -v SCALE="$SCALE" -v DURATION="$DURATION" \
                                 S1_CYC_EXE_P4 = 0; S1_CYC_EXE_P5 = 0; S1_CYC_EXE_P6 = 0; S1_CYC_EXE_P7 = 0;
 																												}' >> $1".proc"
 
+XTIC_VAL=500
 
 gnuplot <<-EOFMarker
 reset
@@ -204,7 +201,7 @@ unset ytics
 #set xtics 0,10,300
 #unset xtics
 set xrange [0:]
-set xtics 100
+set xtics $XTIC_VAL
 set xlabel "Elapsed Time (seconds)"
 set key width 20
 set grid y
@@ -214,6 +211,10 @@ set style histogram rowstacked gap 1
 set style fill solid noborder
 set boxwidth 1
 #set xtics rotate by -45
+
+nth(countCol,labelCol,n) = \
+  ((int(column(countCol)) % n == 0) ? stringcolumn(labelCol) : "")
+
 
 stats '$1.proc' using 27:1 name "C27"
 stats '$1.proc' using 28:1 name "C28"
@@ -250,7 +251,7 @@ set label "Histogram binwidth xaxis '$SCALE' - (Aggregated over $SCALE s)" right
 set ylabel "Top down analysis split"
 set ytics 0,0.1,1
 set yrange [0:1]
-plot '$1.proc' u  ( 1. * ( ( \$3 + \$8 ) / ( \$3 + \$4 + \$5 + \$6 + \$8 + \$9 + \$10 + \$11 ) ) ) t "Front-End Bound" lc rgb '#A0A0A0', \
+plot '$1.proc' u  ( 1. * ( ( \$3 + \$8 ) / ( \$3 + \$4 + \$5 + \$6 + \$8 + \$9 + \$10 + \$11 ) ) ):xtic(nth(1,1,$XTIC_VAL)) t "Front-End Bound" lc rgb '#A0A0A0', \
     '' u  ( 1. * ( ( \$4 + \$9 ) / ( \$3 + \$4 + \$5 + \$6 + \$8 + \$9 + \$10 + \$11 ) ) ) t "Bad Speculation" lc rgb '#0000cd', \
     '' u  ( 1. * ( ( \$5 + \$10 ) / ( \$3 + \$4 + \$5 + \$6 + \$8 + \$9 + \$10 + \$11 ) ) ) t "Retiring" lc rgb '#F08080', \
     '' u  ( 1. * ( ( \$6 + \$11 ) / ( \$3 + \$4 + \$5 + \$6 + \$8 + \$9 + \$10 + \$11 ) ) ) t "Back-End Bound" lc rgb '#2E8B57';
@@ -275,20 +276,20 @@ set output '$1.scale$2.ipc.svg';
 set ylabel "IPC"
 set ytics auto
 set yrange [0:4]
-plot '$1.proc' u ( ( \$24 + \$25 ) / 2 )  not lc rgb '#8060C0';
+plot '$1.proc' u ( ( \$24 + \$25 ) / 2 ):xtic(nth(1,1,$XTIC_VAL))  not lc rgb '#8060C0';
 
 set output '$1.scale$2.mem.svg';
 set ylabel "Memory Access (GiB)"
 set ytics auto
 set autoscale y
-plot '$1.proc' u  ( ( ( \$12 + \$14 ) / \$17 ) ) t "Read" lc rgb '#386CB0', \
+plot '$1.proc' u  ( ( ( \$12 + \$14 ) / \$17 ) ):xtic(nth(1,1,$XTIC_VAL)) t "Read" lc rgb '#386CB0', \
     '' u  ( ( ( \$13 + \$15 ) / \$17 ) ) t "Write" lc rgb '#F0027F';
 
 set output '$1.scale$2.pp.svg';
 set ylabel "Ratio of cycles the port is active"
 set ytics 0.5
 set yrange [0:6]
-plot '$1.proc' u  27 t "Port 0" lc rgb '#666666', \
+plot '$1.proc' u  27:xtic(nth(1,1,$XTIC_VAL)) t "Port 0" lc rgb '#666666', \
     '' u  28 t "Port 1" lc rgb '#A6761D', \
     '' u  32 t "Port 5" lc rgb '#7570B3', \
     '' u  33 t "Port 6" lc rgb '#D95F02', \
@@ -301,7 +302,7 @@ set output '$1.scale$2.mp.svg';
 set ylabel "Ratio of memory requests that resulted in Page Empty/Miss/Hit"
 set ytics auto
 set yrange [0:1]
-plot '$1.proc' u ( ( ( \$35 + \$37 ) - ( \$36 + \$38 ) ) / ( ( \$12 + \$14 + \$13 + \$15 ) / 64 ) ) t "Page Empty" lc rgb '#7570B3', \
+plot '$1.proc' u ( ( ( \$35 + \$37 ) - ( \$36 + \$38 ) ) / ( ( \$12 + \$14 + \$13 + \$15 ) / 64 ) ):xtic(nth(1,1,$XTIC_VAL)) t "Page Empty" lc rgb '#7570B3', \
     '' u  ( ( \$36 + \$38 ) / ( ( \$12 + \$14 + \$13 + \$15 ) / 64 ) ) t "Page Miss" lc rgb '#D95F02', \
     '' u  ( 1 - ( ( \$36 + \$38 ) / ( ( \$12 + \$14 + \$13 + \$15 ) / 64 ) ) - ( ( ( \$35 + \$37 ) - ( \$36 + \$38 ) ) / ( ( \$12 + \$14 + \$13 + \$15 ) / 64 ) ) ) t "Page Hit" lc rgb '#66A61E';
 

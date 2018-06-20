@@ -129,7 +129,12 @@ EVT_CNT_DIR=$BASE_DIR/EventCounters
 INTERVAL=1000
 
 # Duration the script has to run in seconds
-DURATION=5500
+DURATION=$1
+if (( DURATION == 0 ))
+then
+DURATION=30000
+fi
+
 
 
 ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%SZ"`
@@ -182,13 +187,54 @@ for (( i=0; i<$NO_SOCKETS; i++ ))
 $ECHO $FILE_HEADER";" > $OUTFILE
 
 
+#Find process with the name
+function p()
+{
+  ps aux | grep -i $1 | grep -v grep
+}
+
+#Kill the process
+function ki()
+{
+  PROCESS="$(ps aux | grep -i $1 | grep -v grep | head -1)"
+  PROCESS_NAME="$(echo $PROCESS | awk '{printf $11}')"
+  PROCESS_PID="$(echo $PROCESS | awk '{print $2}')"
+
+  printf "Found %s running... Terminating its PID %s..." $PROCESS_NAME $PROCESS_PID
+  kill $PROCESS_PID
+  printf "Done!\n"
+}
+
+hupexit()
+{
+  # HUP'd (probably by intexit)
+  echo
+
+  for SSTR in "sleep";
+  do
+    while [ -n "$(p $SSTR)" ];
+    do
+      ki $SSTR
+    done
+  done
+  printf "Caught interrupt.. Flushing fifos..."
+	exec 5<>$P1
+	cat <&5 >/dev/null & cat_pid=$!
+	sleep 1
+	kill "$cat_pid"
+	printf "Terminated gracefully...\n"
+}
+
+trap hupexit HUP INT SIGTERM SIGINT
+
 #Perf command collection
 $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &
 
 
 #String formatting and timestamping
-$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $OUTFILE 
+$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $OUTFILE &
 
+wait
 
 #Cleanup
 $RM $P1
