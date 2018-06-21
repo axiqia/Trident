@@ -113,6 +113,7 @@ RM=`which rm`
 TS=`which ts`
 SLEEP=`which sleep`
 PWD=`which pwd`
+TIME=`which time`
 
 
 # Local only binaries
@@ -126,28 +127,22 @@ EVT_CNT_DIR=$BASE_DIR/EventCounters
 # Default 10000ms or 10s for ~3MiB of data per day
 # Can be adjusted based on the data size that can
 # be collected
-INTERVAL=1000
+INTERVAL=${1:-1000}
 
 # Duration the script has to run in seconds
-DURATION=$1
-if (( DURATION == 0 ))
-then
-DURATION=30000
-fi
+DURATION=${2:-30000}
 
-
-
-ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%SZ"`
+ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%3NZ"`
 
 # Prepend the node name to this string.
 OUTFILE="$($HOSTNAME).Trident.$TRIDENT_VER.$ST_TSTMP.log"
 
 # Generate a random file in /tmp for pipe
 P1="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
+TOUT="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
 
 # Create the pipe and ensure only I can access it for security reasons
 $MKFIFO -m 600 $P1
-
 
 #Supported event list detection
 EVNT_LIST=$($TRIDENT_SUPPORT $EVT_CNT_DIR 2>&1 | $GREP "architecture is detected" | $AWK -F '[<>]' '{print $2}')
@@ -186,7 +181,6 @@ for (( i=0; i<$NO_SOCKETS; i++ ))
 }
 $ECHO $FILE_HEADER";" > $OUTFILE
 
-
 #Find process with the name
 function p()
 {
@@ -196,28 +190,21 @@ function p()
 #Kill the process
 function ki()
 {
-  PROCESS="$(ps aux | grep -i $1 | grep -v grep | head -1)"
+  PROCESS="$(ps aux | grep -i $1 | grep -v grep | grep -v perf | head -1)"
   PROCESS_NAME="$(echo $PROCESS | awk '{printf $11}')"
   PROCESS_PID="$(echo $PROCESS | awk '{print $2}')"
 
-  printf "Found %s running... Terminating its PID %s..." $PROCESS_NAME $PROCESS_PID
-  kill $PROCESS_PID
-  printf "Done!\n"
+	#echo -e "Sending SIGINT to $PROCESS_PID"
+  kill -s SIGINT $PROCESS_PID
 }
 
-hupexit()
+function trap_exit()
 {
-  # HUP'd (probably by intexit)
-  echo
-
-  for SSTR in "sleep";
+	printf "\nCaught exit request... Flushing fifos...\n"
+	while [ -n "$(p "/usr/bin/sleep")" ];
   do
-    while [ -n "$(p $SSTR)" ];
-    do
-      ki $SSTR
-    done
+    ki "sleep"
   done
-  printf "Caught interrupt.. Flushing fifos..."
 	exec 5<>$P1
 	cat <&5 >/dev/null & cat_pid=$!
 	sleep 1
@@ -225,21 +212,25 @@ hupexit()
 	printf "Terminated gracefully...\n"
 }
 
-trap hupexit HUP INT SIGTERM SIGINT
+trap trap_exit SIGTERM SIGINT
+trap '' SIGHUP
 
 #Perf command collection
-$PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &
+$TIME -o $TOUT -f "Trident resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &> /dev/null &
 
 
 #String formatting and timestamping
-$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $OUTFILE &
+$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $OUTFILE &
 
 wait
 
 #Cleanup
 $RM $P1
 $ECHO "" >> $OUTFILE
-$ECHO "Finished at "`$DATE -u +"%Y-%m-%dT%H:%M:%SZ"` >> $OUTFILE
+$ECHO "Finished at "`$DATE -u +"%Y-%m-%dT%H:%M:%S.%3NZ"` >> $OUTFILE
+$CAT $TOUT >> $OUTFILE
+$CAT $TOUT
+$RM $TOUT
 
 #-------------------------Script Ends-----------------------------
 
