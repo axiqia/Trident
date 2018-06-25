@@ -132,7 +132,7 @@ INTERVAL=${1:-1000}
 # Duration the script has to run in seconds
 DURATION=${2:-30000}
 
-ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%3NZ"`
+ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ"`
 
 # Prepend the node name to this string.
 OUTFILE="$($HOSTNAME).Trident.$TRIDENT_VER.$ST_TSTMP.log"
@@ -224,10 +224,15 @@ $CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" | $AWK -F ";" 'NF>12 { printf $1";"
 
 wait
 
+EN_TSTMP=$($DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ");
+ST=$(date --date "$ST_TSTMP" +%s.%N);
+EN=$(date --date "$EN_TSTMP" +%s.%N);
+DUR=$( echo "$EN - $ST" | bc )
+
 #Cleanup
 $RM $P1
 $ECHO "" >> $OUTFILE
-$ECHO "Finished at "`$DATE -u +"%Y-%m-%dT%H:%M:%S.%3NZ"` >> $OUTFILE
+$ECHO "Trident profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $OUTFILE
 $CAT $TOUT >> $OUTFILE
 $CAT $TOUT
 $RM $TOUT
