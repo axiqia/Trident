@@ -2,7 +2,7 @@
 #===============================================================================
 # Trident - Automated Node Performance Metrics Collection Tool
 #
-# Trident.Record.Blockstats.pl - utility to collect specific information from
+# Trident.Record.IO.pl - utility to collect specific information from
 # block devices
 #
 # (C) Copyright 2018 CERN. This software is distributed under the terms of the
