@@ -87,7 +87,7 @@ if ($printheader) {
 }
 
 my %devnext;
-my $starttime = monotime();
+my $starttime = time();
 my $linere = '\s+(\d+)\s+(\d+)\s+(.+)'.'\s+(\d+)'x11;
 while(1) {
   %devnext = ();
@@ -141,7 +141,7 @@ while(1) {
   }
   print "\n" if $didx;
   %devs = %devnext;
-  last if (monotime() - $starttime + $INTERVAL > $DURATION);
+  last if (time() - $starttime + $INTERVAL > $DURATION);
   sleep($INTERVAL);
 }
 
