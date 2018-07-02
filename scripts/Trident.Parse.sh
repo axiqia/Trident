@@ -5,7 +5,7 @@
 
 
 #Intel Top-Down uArch Analysis
-#factor = 4 HT off / 2 HT on
+#FACTOR = 4 HT off / 2 HT on
 #slots = 4 * cpu_clk_unhalted;
 #fe_bound = idq_uops_not_delivered / slots;
 #$bad_spec = (uops_issued - uops_retired_slots + 4*recovery_cycles) / slots;
@@ -14,13 +14,14 @@
 
 SCALE=${2:-1}
 INTERVAL=${3:-1}
+FACTOR=4
 
 function Parse()
 {
 		echo "\"Timestamp\"; \"slots s0\"; \"fe bound s0\"; \"bad spec s0\"; \"retiring s0\"; \"be bound s0\"; \
 		\"slots s1\"; \"fe bound s1\"; \"bad spec s1\"; \"retiring s1\"; \"be bound s1\"; \
 		\"S0 RBW\"; \"S0 WBW\"; \"S1 RBW\"; \"S1 WBW\"; \"RM BW\"; \"TOT BW\"; \
-		\"S0 BW CY\"; \"S1 BW CYC\"; \"RM BW CYC\"; \"S0 BW IN\"; \"S1 BW IN\";\"RM BW IN\"; \
+		\"S0 CY\"; \"S0 IN\"; \"---\"; \"S1 CY\"; \"S1 IN\";\"---\"; \
 		\"S0 IPC\"; \"S1 IPC\"; \"RM IPC\"; \
 		\"RATIO P0\"; \"RATIO P1\"; \"RATIO P2\"; \"RATIO P3\"; \"RATIO P4\"; \"RATIO P5\"; \"RATIO P6\"; \"RATIO P7\";\
 		\"S0 PO\"; \"S0 PM\"; \"S1 PO\"; \"S1 PM\"" > $1".proc"
@@ -30,7 +31,7 @@ function Parse()
 		#echo $STARTTIMESTAMP
 
 		tail -n+2 $1 | \
-		awk -F ";" -v SCALE="$SCALE" -v INTERVAL="$INTERVAL" -v OldTimestamp="$STARTTIMESTAMP" \
+		awk -F ";" -v SCALE="$SCALE" -v INTERVAL="$INTERVAL" -v OldTimestamp="$STARTTIMESTAMP" -v FACTOR="$FACTOR" \
 			 '( NF>12 && SCALE>1 ){ 
 										S0_C0_RBW += $2; S0_C1_RBW += $3; S0_C2_RBW += $4; S0_C3_RBW += $5;
 																		S0_C0_WBW += $6; S0_C1_WBW += $7; S0_C2_WBW += $8; S0_C3_WBW += $9;
@@ -65,13 +66,13 @@ function Parse()
 																		S1_CYC_EXE_P0 += $54; S1_CYC_EXE_P1 += $55; S1_CYC_EXE_P2 += $56; S1_CYC_EXE_P3 += $57; 
 																		S1_CYC_EXE_P4 += $58; S1_CYC_EXE_P5 += $59; S1_CYC_EXE_P6 += $60; S1_CYC_EXE_P7 += $61;
 
-												S1 = "date --date \"" Timestamp "\" +%s.%N";
-												S2 = "date --date \"" OldTimestamp "\" +%s.%N";
-												S1 | getline S1T;
-												S2 | getline S2T;
-												close(S1);
-												close(S2);
-												Delta = S1T - S2T;
+										S1 = "date --date \"" Timestamp "\" +%s.%N";
+										S2 = "date --date \"" OldTimestamp "\" +%s.%N";
+										S1 | getline S1T;
+										S2 | getline S2T;
+										close(S1);
+										close(S2);
+										Delta = S1T - S2T;
 
 										SOCKET_PEAK_BANDWIDTH_HASWELL_E5_2630_V3 = 40 * 1E+9;
 										SOCKET_PEAK_BANDWIDTH_HASWELL_E5_2630_V3 = 5E+8;
@@ -165,13 +166,12 @@ function Parse()
 										RATIO_P6 = S0_RATIO_P6 + S1_RATIO_P6;
 										RATIO_P7 = S0_RATIO_P7 + S1_RATIO_P7;
 										
-										factor = 4;
 										cutoff = 1E+10 * SCALE * INTERVAL;
 										cutoff = 0;
 										
-										slots_s0 = factor * S0_CYC; slots_s1 = factor * S1_CYC;
+										slots_s0 = FACTOR * S0_CYC; slots_s1 = FACTOR * S1_CYC;
 										fe_bound_s0 = S0_UOPS_NDV / slots_s0; fe_bound_s1 = S1_UOPS_NDV / slots_s1;
-										bad_spec_s0 = ( S0_UOPS_ISS - S0_UOPS_RET + ( factor * S0_REC_CYC ) ) / slots_s0; bad_spec_s1 = ( S1_UOPS_ISS - S1_UOPS_RET + ( factor * S1_REC_CYC ) ) / slots_s1;
+										bad_spec_s0 = ( S0_UOPS_ISS - S0_UOPS_RET + ( FACTOR * S0_REC_CYC ) ) / slots_s0; bad_spec_s1 = ( S1_UOPS_ISS - S1_UOPS_RET + ( FACTOR * S1_REC_CYC ) ) / slots_s1;
 										retiring_s0 = S0_UOPS_RET / slots_s0; retiring_s1 = S1_UOPS_RET / slots_s1;
 										be_bound_s0 = 1 - fe_bound_s0 - bad_spec_s0 - retiring_s0; be_bound_s1 = 1 - fe_bound_s1 - bad_spec_s1 - retiring_s1; 
 
@@ -190,7 +190,7 @@ function Parse()
 										
 										printf "%9.3G;%9.3G;%9.3G;%9.3G;%9.3G;%9.3G;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;", \
 												S0_RBW, S0_WBW, S1_RBW, S1_WBW, RM_BW, TOT_BW, \
-												S0_BW_CYC, S1_BW_CYC, RM_BW_CY, S0_BW_IN, S1_BW_IN, RM_BW_IN, S0_IPC, S1_IPC, RM_IPC;
+												S0_CYC, S0_IN, 0.0, S1_CYC, S1_IN, 0.0, S0_IPC, S1_IPC, RM_IPC;
 
 										
 										printf "%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;%5.2F;", \
@@ -216,12 +216,12 @@ function Parse()
 																		S1_CYC_EXE_P0 = 0; S1_CYC_EXE_P1 = 0; S1_CYC_EXE_P2 = 0; S1_CYC_EXE_P3 = 0; 
 																		S1_CYC_EXE_P4 = 0; S1_CYC_EXE_P5 = 0; S1_CYC_EXE_P6 = 0; S1_CYC_EXE_P7 = 0;
 																														}' >> $1".proc"
-		ORIG=$(cat $1 | wc -l)
+		ORIG=$(grep -nR "Trident profiled" $1 | awk -F ":" '{print $1}')
 		PROC=$(cat $1".proc" | wc -l)
 
-		if (( $PROC < $((ORIG - 5)) ));
+		if (( $PROC < $((ORIG - 3)) ));
 		then
-				echo "Records processing mismatch"
+				echo "Records processing mismatch Orig:$ORIG Proc:$PROC"
 				exit 1
 		fi
 }
@@ -244,16 +244,16 @@ function Plot()
 		#echo $XTIC_STR
 
 
-		gnuplot <<-EOFMarker
+		/data/smuralid/Tools/gnuplot-gnuplot-main/src/gnuplot <<-EOFMarker
 		reset
 
 		set datafile separator ";"
 		set autoscale
-		set terminal svg noenhanced size 2000,1000 background rgb 'white'
+		set terminal svg enhanced size 2000,1000 dynamic background rgb 'white' font "Helvetica"
 		set key samplen 2 spacing 1 font ",12"
 		set key top left outside horizontal
 		#set xrange [0:]
-		set xtics auto rotate by 45 right font ",9"
+		set xtics auto rotate by 45 right font ",10"
 		set xlabel "Elapsed Time (seconds)"
 		set key width 20
 		#set grid y
@@ -308,7 +308,7 @@ function Plot()
 
 		bin = $2 * $3 
 
-		set title sprintf( "Trident Tool Beta-v3" ) tc lt 3 font ",18"
+		set title sprintf( "Trident Beta.V3" ) font "Helvetica-Bold,20" tc rgb '#0033A0'
 		set label sprintf( "Histogram binwidth xaxis %g - (Aggregated over %g s)", bin, bin ) right at screen 0.97,0.97 tc lt 1 font ",14"
     
 
@@ -329,7 +329,7 @@ function Plot()
 		set yrange [0:]
 
 		plot '$1.proc' u  ( ( ( \$12 + \$14 ) ) ) t "Read" lc rgb '#386CB0', \
-				'' u  ( ( ( \$13 + \$15 ) ) ) t "Write" lc rgb '#F0027F';
+				'' u  ( ( ( \$12 + \$14 + \$13 + \$15 ) ) ) t "Write" lc rgb '#F0027F';
 
 		set output '$1.scale$2.uarch.svg'; 
 		set ylabel "Top down analysis split"
@@ -355,13 +355,20 @@ function Plot()
 		#    '' u  ( ( 25. * ( \$33 / ( C31_max_x + C32_max_x + C33_max_x + C34_max_x ) ) ) + ( rem_c27_30( \$27, \$28, \$29, \$30 ) ) ) t col(33) lc rgb '#007F00', \
 		#    '' u  ( ( 25. * ( \$34 / ( C31_max_x + C32_max_x + C33_max_x + C34_max_x ) ) ) + ( rem_c27_30( \$27, \$28, \$29, \$30 ) ) ) t col(34) lc rgb '#00FF33';
 
-
 		set output '$1.scale$2.ipc.svg';
 		set ylabel "IPC"
-		set ytics auto
-		set yrange [0:4]
-		plot '$1.proc' u ( ( \$24 + \$25 ) / 2 )  not lc rgb '#8060C0';
+		set y2label "Unhalted clock cycles"
+		set ytics 0.5
+		set ytics nomirror
+		set yrange [0:6]
+		set y2tics
+		set y2range [0:8e+9]
+		plot '$1.proc' u ( \$18 + \$21 ) ti "Unhalted clock cycles" w filledcurves fs transparent solid 0.5 axes x1y2 lc rgb '#66A61E', \
+					'' u ( ( \$19 + \$22 ) / ( \$18 + \$21 ) ) ti "IPC" fs transparent solid 1 axes x1y1 lc rgb '#8060C0';
 
+		set ytics mirror
+		unset y2tics
+		unset y2label
 
 		set output '$1.scale$2.pp.svg';
 		set ylabel "Ratio of cycles the port is active"
@@ -389,9 +396,12 @@ function Plot()
 
 ParseCheck=${4:-No}
 
+echo -e "Working on $1"
+
 if [ "$ParseCheck" == "Parse" ];
 then
 		Parse $1 $2 $3
+		echo -e "Parsing completed for $1"
 fi
 
 Plot $1 $2 $3
