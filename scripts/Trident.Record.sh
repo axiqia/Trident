@@ -91,6 +91,7 @@ BASE_DIR="$(cd $SCRIPT_DIR/../ && pwd)"
 # AWK=/usr/bin/awk
 # SED=/usr/bin/sed
 PERF=$BASE_DIR/bin/perf_static
+IO=$BASE_DIR/scripts/Trident.Record.IO.pl
 # RM=/usr/bin/rm
 # TS=/usr/bin/ts
 # SLEEP=/usr/bin/sleep
@@ -132,17 +133,23 @@ INTERVAL=${1:-1000}
 # Duration the script has to run in seconds
 DURATION=${2:-30000}
 
+IOINTERVAL=${3:-1}
+
 ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ"`
 
 # Prepend the node name to this string.
 OUTFILE="$($HOSTNAME).Trident.$TRIDENT_VER.$ST_TSTMP.log"
+IOOUTFILE="$($HOSTNAME).Trident.$TRIDENT_VER.$ST_TSTMP.io.log"
 
 # Generate a random file in /tmp for pipe
 P1="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
+P2="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
 TOUT="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
+T2OUT="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
 
 # Create the pipe and ensure only I can access it for security reasons
 $MKFIFO -m 600 $P1
+$MKFIFO -m 600 $P2
 
 #Supported event list detection
 EVNT_LIST=$($TRIDENT_SUPPORT $EVT_CNT_DIR 2>&1 | $GREP "architecture is detected" | $AWK -F '[<>]' '{print $2}')
@@ -181,6 +188,9 @@ for (( i=0; i<$NO_SOCKETS; i++ ))
 }
 $ECHO $FILE_HEADER";" > $OUTFILE
 
+IO_HDR=$($IO printheader)
+$ECHO $IO_HDR";" > $IOOUTFILE
+
 #Find process with the name
 function p()
 {
@@ -190,12 +200,12 @@ function p()
 #Kill the process
 function ki()
 {
-  PROCESS="$(ps aux | grep -i $1 | grep -v grep | grep -v perf | head -1)"
+  PROCESS="$(ps aux | grep -i $1 | grep -v grep | grep -v perf | tail -1)"
   PROCESS_NAME="$(echo $PROCESS | awk '{printf $11}')"
   PROCESS_PID="$(echo $PROCESS | awk '{print $2}')"
 
-	#echo -e "Sending SIGINT to $PROCESS_PID"
-  kill -s SIGINT $PROCESS_PID
+	echo -e "Sending SIGINT to $PROCESS_NAME $PROCESS_PID"
+  kill -s $2 $PROCESS_PID
 }
 
 function trap_exit()
@@ -203,12 +213,22 @@ function trap_exit()
 	printf "\nCaught exit request... Flushing fifos...\n"
 	while [ -n "$(p "/usr/bin/sleep")" ];
   do
-    ki "sleep"
+    ki "sleep" SIGINT
+  done
+
+	while [ -n "$(p "Trident.Record.IO.pl")" ];
+  do
+		ki "Trident.Record.IO.pl" SIGKILL
   done
 	exec 5<>$P1
 	cat <&5 >/dev/null & cat_pid=$!
 	sleep 1
 	kill "$cat_pid"
+
+	exec 5<>$P2
+  cat <&5 >/dev/null & cat_pid=$!
+  sleep 1
+  kill "$cat_pid"
 	printf "Terminated gracefully...\n"
 }
 
@@ -218,9 +238,12 @@ trap '' SIGHUP
 #Perf command collection
 $TIME -o $TOUT -f "Trident resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &> /dev/null &
 
+$TIME -o $T2OUT -f "Trident IO resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $IOINTERVAL $DURATION >> $P2 &
 
 #String formatting and timestamping
 $CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $OUTFILE &
+
+$CAT $P2 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" >> $IOOUTFILE &
 
 wait
 
@@ -231,11 +254,19 @@ DUR=$( echo "$EN - $ST" | bc )
 
 #Cleanup
 $RM $P1
+$RM $P2
+
 $ECHO "" >> $OUTFILE
 $ECHO "Trident profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $OUTFILE
 $CAT $TOUT >> $OUTFILE
 $CAT $TOUT
-$RM $TOUT
+
+$ECHO "" >> $IOOUTFILE
+$ECHO "Trident IO profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $IOOUTFILE
+$CAT $T2OUT >> $IOOUTFILE
+$CAT $T2OUT
+
+$RM $TOUT $T2OUT
 
 #-------------------------Script Ends-----------------------------
 
