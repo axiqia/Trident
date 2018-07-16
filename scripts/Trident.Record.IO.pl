@@ -30,6 +30,7 @@ use warnings;
 use strict;
 use Fcntl ':mode';
 use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use sigtrap qw(die normal-signals);
 
 sub monotime() {
   return Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC);
@@ -136,13 +137,13 @@ while(1) {
     my $wioprate = $wok / $elapsed;
     my $pcutil = $deltioms / $elapsed / 10.0;
     print ";" if $didx;
-    printf "%s;%.2f;%.2f;%.2f;%.2f;%.2f", $dname,$rioprate,$rrate,$wioprate,$wrate,$pcutil;
+    printf "%3s;%6.2f;%6.2f;%6.2f;%6.2f;%6.2f", $dname,$rioprate,$rrate,$wioprate,$wrate,$pcutil;
     $didx++;
   }
   print "\n" if $didx;
   %devs = %devnext;
-  last if (int(monotime() - $starttime) + $INTERVAL > $DURATION);
-  sleep($INTERVAL);
+	last if (int(monotime() - $starttime) + $INTERVAL > $DURATION);
+	sleep($INTERVAL);
 }
 
 exit 0;

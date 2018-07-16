@@ -249,7 +249,8 @@ function Plot()
 
 		set datafile separator ";"
 		set autoscale
-		set terminal svg enhanced size 2000,1000 dynamic background rgb 'white' font "Helvetica"
+		#set terminal svg enhanced size 2000,1000 dynamic background rgb 'white' font "Helvetica"
+		set terminal svg enhanced size 2000,1000 dynamic font "Helvetica"
 		set key samplen 2 spacing 1 font ",12"
 		set key top left outside horizontal
 		#set xrange [0:]

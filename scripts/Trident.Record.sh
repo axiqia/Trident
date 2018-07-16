@@ -67,9 +67,68 @@
 #
 
 #-------------------------Script Begins-----------------------------
-
 #!/bin/bash
-TRIDENT_VER=Beta-v3
+
+#Version
+TRIDENT_VER=Beta-v4
+
+# Time interval to record processor data in seconds
+#
+# Default 10000ms or 10s for ~3MiB of data per day
+# Can be adjusted based on the data size that can
+# be collected
+USER_INTERVAL=${1:-1}
+
+INTERVAL=$(( USER_INTERVAL * 1000 ))
+
+# Duration the script has to run in seconds
+DURATION=${2:-30000}
+
+# Time interval to record IO data in seconds
+IOINTERVAL=${3:-1}
+
+
+#----------------------EOF User Parameters--------------------------
+
+NMI_S=$(cat /proc/sys/kernel/nmi_watchdog)
+PERF_S=$(cat /proc/sys/kernel/perf_event_paranoid)
+
+if (( $NMI_S != 0 ));	
+then 
+		printf "Trident Error: Kindly ensure "
+		printf "/proc/sys/kernel/nmi_watchdog is set to 0\n"; 
+		exit 1; 
+fi
+
+if (( $PERF_S != -1 ));	
+then 
+		printf "Trident Error: Kindly ensure "
+		printf "/proc/sys/kernel/perf_event_paranoid is set to -1\n"; 
+		exit 1; 
+fi
+
+if (( $INTERVAL < 0.1 || $INTERVAL > 60 )); 
+then 
+		printf "Trident Error: Core and Memory performance "
+		printf "counter granularity not within spec of 0.1->60s\n"; 
+		exit 1; 
+fi
+
+if (( $IOINTERVAL < 1 || $IOINTERVAL > 60 )); 
+then 
+		printf "Trident Error: IO performance counter "
+		printf "granularity not within spec of 1->60s\n"; 
+		exit 1; 
+fi
+
+if (( $DURATION < 0 || $DURATION < $INTERVAL || $DURATION < $IOINTERVAL )); 
+then 
+		printf "Trident Error: Profiling duration "
+		printf "is too short for specified intervals\n"; 
+		exit 1; 
+fi
+
+#---------------EOF User Parameters Sanity Check---------------------
 
 # Autodetect script's home directory
 SCRIPT_DIR=`dirname "$(readlink -f "${BASH_SOURCE[0]}")"`
@@ -96,6 +155,7 @@ IO=$BASE_DIR/scripts/Trident.Record.IO.pl
 # TS=/usr/bin/ts
 # SLEEP=/usr/bin/sleep
 # PWD=/usr/bin/pwd
+# TIME=/usr/bin/time
 
 # Autodetect system defaults
 DATE=`which date`
@@ -117,23 +177,32 @@ PWD=`which pwd`
 TIME=`which time`
 
 
+command -v $DATE &>/dev/null || { echo >&2 "Trident Error: 'date' is not installed."; exit 1; }
+command -v $HOSTNAME &>/dev/null || { echo >&2 "Trident Error: 'hostname' is not installed."; exit 1; }
+command -v $MKFIFO &>/dev/null || { echo >&2 "Trident Error: 'mkfifo' is not installed."; exit 1; }
+command -v $MKTEMP &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $CAT &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $ECHO &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $GREP &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $SORT &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $WC &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $AWK &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $SED &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $PERF &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $IO &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $RM &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $TS &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $SLEEP &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $PWD &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+command -v $TIME &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+
+#---------------EOF Program Binaries Sanity Check---------------------
+
 # Local only binaries
 TRIDENT_SUPPORT=$BASE_DIR/bin/trident_support
 
 # Event counter metrics directory
 EVT_CNT_DIR=$BASE_DIR/EventCounters
-
-# Time interval to record data in milli seconds
-#
-# Default 10000ms or 10s for ~3MiB of data per day
-# Can be adjusted based on the data size that can
-# be collected
-INTERVAL=${1:-1000}
-
-# Duration the script has to run in seconds
-DURATION=${2:-30000}
-
-IOINTERVAL=${3:-1}
 
 ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ"`
 
@@ -189,7 +258,7 @@ for (( i=0; i<$NO_SOCKETS; i++ ))
 $ECHO $FILE_HEADER";" > $OUTFILE
 
 IO_HDR=$($IO printheader)
-$ECHO $IO_HDR";" > $IOOUTFILE
+$ECHO "TIMESTAMP;"$IO_HDR";" > $IOOUTFILE
 
 #Find process with the name
 function p()
@@ -218,17 +287,17 @@ function trap_exit()
 
 	while [ -n "$(p "Trident.Record.IO.pl")" ];
   do
-		ki "Trident.Record.IO.pl" SIGKILL
+		ki "Trident.Record.IO.pl" SIGINT
   done
 	exec 5<>$P1
 	cat <&5 >/dev/null & cat_pid=$!
 	sleep 1
 	kill "$cat_pid"
 
-	exec 5<>$P2
-  cat <&5 >/dev/null & cat_pid=$!
+	exec 6<>$P2
+  cat <&6 >/dev/null & cat_pid2=$!
   sleep 1
-  kill "$cat_pid"
+  kill "$cat_pid2"
 	printf "Terminated gracefully...\n"
 }
 
