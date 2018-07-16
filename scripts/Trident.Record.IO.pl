@@ -29,8 +29,14 @@
 use warnings;
 use strict;
 use Fcntl ':mode';
-use Time::HiRes qw(clock_gettime CLOCK_MONOTONIC);
+use Time::HiRes qw(nanosleep clock_gettime CLOCK_MONOTONIC);
 use sigtrap qw(die normal-signals);
+
+# enable autoflush on stderr and stdout
+select(STDERR);
+$| = 1;
+select(STDOUT);
+$| = 1;
 
 sub monotime() {
   return Time::HiRes::clock_gettime(Time::HiRes::CLOCK_MONOTONIC);
@@ -142,8 +148,8 @@ while(1) {
   }
   print "\n" if $didx;
   %devs = %devnext;
-	last if (int(monotime() - $starttime) + $INTERVAL > $DURATION);
-	sleep($INTERVAL);
+  last if (int((monotime() - $starttime) / $INTERVAL) >= int($DURATION/$INTERVAL));
+  nanosleep($INTERVAL*1000000000);
 }
 
 exit 0;
