@@ -38,7 +38,7 @@ int32_t main( int32_t argc, char **argv )
 {
 	if( argc < 2 )
 		errx( -1, "trident_support usage: ./trident_support event_counters_directory" );
-	
+
 	int32_t ret;
 	int32_t i;
 	int32_t detected_arch = -1;
@@ -52,23 +52,23 @@ int32_t main( int32_t argc, char **argv )
 	char supported_arch[ STRMAXLEN ];
 	char ext[ STRMAXLEN ];
 	DIR *dir_itr;
-  	struct dirent *current_dir;
+	struct dirent *current_dir;
 	printf( "trident_support: Scanning with metrics from %s\n", argv[ 1 ] );
 	dir_itr = opendir( argv[ 1 ] );
 	if( dir_itr )
 	{
-    	while( ( current_dir = readdir( dir_itr ) ) != NULL ) 
+		while( ( current_dir = readdir( dir_itr ) ) != NULL ) 
 		{
-      		//printf( "%s\n", current_dir->d_name );
+			//printf( "%s\n", current_dir->d_name );
 			if( sscanf( current_dir->d_name, "%[^.].%4s", supported_arch, ext ) )
 			{
 				if( strncmp( ext, "evts", STRMAXLEN ) == 0 )
 				{
 					//printf( "Arch: %s %s \n", supported_arch, ext );
 					for( i = 0; i < PFM_PMU_MAX; i++ )
-    				{
-				        if( pfm_get_pmu_info( i, &pinfo ) == PFM_SUCCESS && pinfo.is_present )
-				        {
+					{
+						if( pfm_get_pmu_info( i, &pinfo ) == PFM_SUCCESS && pinfo.is_present )
+						{
 							if( strncmp( pinfo.name, supported_arch, STRMAXLEN ) == 0 )
 							{
 								//printf("%d, %s, \"%s\"\n", i, pinfo.name, pinfo.desc);
@@ -81,9 +81,9 @@ int32_t main( int32_t argc, char **argv )
 					}
 				}
 			}
-    	}
-    	closedir( dir_itr );
-  	}
+		}
+		closedir( dir_itr );
+	}
 
 	if( detected_arch > 0 )
 	{

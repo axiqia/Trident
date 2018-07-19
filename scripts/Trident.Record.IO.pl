@@ -143,7 +143,7 @@ while(1) {
     my $wioprate = $wok / $elapsed;
     my $pcutil = $deltioms / $elapsed / 10.0;
     print ";" if $didx;
-    printf "%3s;%6.2f;%6.2f;%6.2f;%6.2f;%6.2f", $dname,$rioprate,$rrate,$wioprate,$wrate,$pcutil;
+    printf "%6s;%8.2f;%8.2f;%8.2f;%8.2f;%8.2f", $dname,$rioprate,$rrate,$wioprate,$wrate,$pcutil;
     $didx++;
   }
   print "\n" if $didx;

@@ -1,9 +1,6 @@
 #
 # Trident - Automated Node Performance Metrics Collection Tool
 #
-# trident_support.c - Determines arch of node and evaluates its
-# support by the trident metrics collection tool
-#
 # Copyright (C) 2018, Servesh Muralidharan, IT-DI-WLCG-UP, CERN
 # Contact: servesh.muralidharan@cern.ch
 #
@@ -21,9 +18,14 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 # 
+# Trident.Record.sh - Main script to record the performance data
+#
 # Change log:
+#
+# Stopped recording changelogs as codebase is moved to gitrepo
+#
 # 18-Apr'18 Trident Beta-v1
-#   * Moved to git repo
+# * Moved to git repo
 #	* changelog maintained thru commits henceforth
 #	* Improved detection and automation
 #
@@ -74,54 +76,50 @@ TRIDENT_VER=Beta-v4
 
 # Time interval to record processor data in seconds
 #
-# Default 10000ms or 10s for ~3MiB of data per day
+# Default 1s for ~30MiB of data per day
 # Can be adjusted based on the data size that can
 # be collected
 USER_INTERVAL=${1:-1}
 
-INTERVAL=$(( USER_INTERVAL * 1000 ))
-
 # Duration the script has to run in seconds
 DURATION=${2:-30000}
 
-# Time interval to record IO data in seconds
-IOINTERVAL=${3:-1}
-
-
 #----------------------EOF User Parameters--------------------------
 
-NMI_S=$(cat /proc/sys/kernel/nmi_watchdog)
-PERF_S=$(cat /proc/sys/kernel/perf_event_paranoid)
+# Set internal interval variable
+# We need ms for perf and sec for IO script
+INTERVAL=$( echo "$USER_INTERVAL * 1000" | bc |  awk '{printf "%d", $0}' )
 
-if (( $NMI_S != 0 ));	
+# Find out if NMI is off
+NMI_S=$( cat /proc/sys/kernel/nmi_watchdog )
+
+# Find out if kernel paranoid setting is sufficient
+PERF_S=$( cat /proc/sys/kernel/perf_event_paranoid )
+
+if (( NMI_S != 0 ));	
 then 
 		printf "Trident Error: Kindly ensure "
 		printf "/proc/sys/kernel/nmi_watchdog is set to 0\n"; 
 		exit 1; 
 fi
 
-if (( $PERF_S != -1 ));	
+if (( PERF_S != -1 ));	
 then 
 		printf "Trident Error: Kindly ensure "
 		printf "/proc/sys/kernel/perf_event_paranoid is set to -1\n"; 
 		exit 1; 
 fi
 
-if (( $INTERVAL < 0.1 || $INTERVAL > 60 )); 
+if (( $( echo "$INTERVAL < 100" | bc -l ) || \
+		$( echo "$INTERVAL > 60000" | bc -l ) )); 
 then 
-		printf "Trident Error: Core and Memory performance "
+		printf "Trident Error: Interval resolution affects performance, "
 		printf "counter granularity not within spec of 0.1->60s\n"; 
 		exit 1; 
 fi
 
-if (( $IOINTERVAL < 1 || $IOINTERVAL > 60 )); 
-then 
-		printf "Trident Error: IO performance counter "
-		printf "granularity not within spec of 1->60s\n"; 
-		exit 1; 
-fi
-
-if (( $DURATION < 0 || $DURATION < $INTERVAL || $DURATION < $IOINTERVAL )); 
+if (( $( echo "$DURATION < 0" | bc -l ) || \
+		$( echo "$DURATION < $INTERVAL / 1000" | bc -l ) )); 
 then 
 		printf "Trident Error: Profiling duration "
 		printf "is too short for specified intervals\n"; 
@@ -137,6 +135,26 @@ BASE_DIR="$(cd $SCRIPT_DIR/../ && pwd)"
 # Binaries used with their path
 # Change path to switch between local and system defaults
 
+# Autodetect system defaults
+DATE=$(command -v date) || { echo >&2 "Trident Error: 'date' is not installed."; exit 1; }
+HOSTNAME=$(command -v hostname) || { echo >&2 "Trident Error: 'hostname' is not installed."; exit 1; }
+MKFIFO=$(command -v mkfifo) || { echo >&2 "Trident Error: 'mkfifo' is not installed."; exit 1; }
+MKTEMP=$(command -v mktemp) || { echo >&2 "Trident Error: 'mktemp' is not installed."; exit 1; }
+CAT=$(command -v cat) || { echo >&2 "Trident Error: 'cat' is not installed."; exit 1; }
+ECHO=$(command -v echo ) || { echo >&2 "Trident Error: 'echo' is not installed."; exit 1; }
+GREP=$(command -v grep ) || { echo >&2 "Trident Error: 'grep' is not installed."; exit 1; }
+SORT=$(command -v sort ) || { echo >&2 "Trident Error: 'sort' is not installed."; exit 1; }
+WC=$(command -v wc ) || { echo >&2 "Trident Error: 'wc' is not installed."; exit 1; }
+AWK=$(command -v awk ) || { echo >&2 "Trident Error: 'awk' is not installed."; exit 1; }
+SED=$(command -v sed ) || { echo >&2 "Trident Error: 'sed' is not installed."; exit 1; }
+RM=$(command -v rm ) || { echo >&2 "Trident Error: 'rm' is not installed."; exit 1; }
+TS=$(command -v ts ) || { echo >&2 "Trident Error: 'ts' is not installed."; exit 1; }
+SLEEP=$(command -v sleep ) || { echo >&2 "Trident Error: 'sleep' is not installed."; exit 1; }
+PWD=$(command -v pwd ) || { echo >&2 "Trident Error: 'pwd' is not installed."; exit 1; }
+TIME=$(command -v /usr/bin/time ) || { echo >&2 "Trident Error: '/usr/bin/time' is not installed."; exit 1; }
+PERF=$(command -v $BASE_DIR/bin/perf_static ) || { echo >&2 "Trident Error: '$BASE_DIR/bin/perf_static' not found."; exit 1; }
+IO=$(command -v $BASE_DIR/scripts/Trident.Record.IO.pl ) || { echo >&2 "Trident Error: '$BASE_DIR/scripts/Trident.Record.IO.pl' not found."; exit 1; }
+
 # Explicit path
 # DATE=/usr/bin/date
 # HOSTNAME=/usr/bin/hostname
@@ -149,52 +167,13 @@ BASE_DIR="$(cd $SCRIPT_DIR/../ && pwd)"
 # WC=/usr/bin/wc
 # AWK=/usr/bin/awk
 # SED=/usr/bin/sed
-PERF=$BASE_DIR/bin/perf_static
-IO=$BASE_DIR/scripts/Trident.Record.IO.pl
 # RM=/usr/bin/rm
 # TS=/usr/bin/ts
 # SLEEP=/usr/bin/sleep
 # PWD=/usr/bin/pwd
 # TIME=/usr/bin/time
-
-# Autodetect system defaults
-DATE=`which date`
-HOSTNAME=`which hostname`
-MKFIFO=`which mkfifo`
-MKTEMP=`which mktemp`
-CAT=`which cat`
-ECHO=`which echo`
-GREP=`which grep`
-SORT=`which sort`
-WC=`which wc`
-AWK=`which awk`
-SED=`which sed`
-# PERF=`which perf`
-RM=`which rm`
-TS=`which ts`
-SLEEP=`which sleep`
-PWD=`which pwd`
-TIME=`which time`
-
-
-command -v $DATE &>/dev/null || { echo >&2 "Trident Error: 'date' is not installed."; exit 1; }
-command -v $HOSTNAME &>/dev/null || { echo >&2 "Trident Error: 'hostname' is not installed."; exit 1; }
-command -v $MKFIFO &>/dev/null || { echo >&2 "Trident Error: 'mkfifo' is not installed."; exit 1; }
-command -v $MKTEMP &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $CAT &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $ECHO &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $GREP &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $SORT &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $WC &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $AWK &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $SED &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $PERF &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $IO &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $RM &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $TS &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $SLEEP &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $PWD &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
-command -v $TIME &>/dev/null || { echo >&2 "Trident Error: is not installed."; exit 1; }
+# PERF=$BASE_DIR/bin/perf_static
+# IO=$BASE_DIR/scripts/Trident.Record.IO.pl
 
 #---------------EOF Program Binaries Sanity Check---------------------
 
@@ -305,9 +284,9 @@ trap trap_exit SIGTERM SIGINT
 trap '' SIGHUP
 
 #Perf command collection
-$TIME -o $TOUT -f "Trident resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &> /dev/null &
+$TIME -o $TOUT -f "Trident core and memory monitor resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &> /dev/null &
 
-$TIME -o $T2OUT -f "Trident IO resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $IOINTERVAL $DURATION >> $P2 &
+$TIME -o $T2OUT -f "Trident IO monitor resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
 
 #String formatting and timestamping
 $CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $OUTFILE &
