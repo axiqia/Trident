@@ -151,6 +151,9 @@ RM=$(command -v rm ) || { echo >&2 "Trident Error: 'rm' is not installed."; exit
 TS=$(command -v ts ) || { echo >&2 "Trident Error: 'ts' is not installed."; exit 1; }
 SLEEP=$(command -v sleep ) || { echo >&2 "Trident Error: 'sleep' is not installed."; exit 1; }
 PWD=$(command -v pwd ) || { echo >&2 "Trident Error: 'pwd' is not installed."; exit 1; }
+READ=$(command -v read ) || { echo >&2 "Trident Error: 'read' is not installed."; exit 1; }
+TR=$(command -v tr ) || { echo >&2 "Trident Error: 'tr' is not installed."; exit 1; }
+LSCPU=$(command -v lscpu ) || { echo >&2 "Trident Error: 'lscpu' is not installed."; exit 1; }
 TIME=$(command -v /usr/bin/time ) || { echo >&2 "Trident Error: '/usr/bin/time' is not installed."; exit 1; }
 PERF=$(command -v $BASE_DIR/bin/perf_static ) || { echo >&2 "Trident Error: '$BASE_DIR/bin/perf_static' not found."; exit 1; }
 IO=$(command -v $BASE_DIR/scripts/Trident.Record.IO.pl ) || { echo >&2 "Trident Error: '$BASE_DIR/scripts/Trident.Record.IO.pl' not found."; exit 1; }
@@ -177,6 +180,13 @@ IO=$(command -v $BASE_DIR/scripts/Trident.Record.IO.pl ) || { echo >&2 "Trident 
 
 #---------------EOF Program Binaries Sanity Check---------------------
 
+#System parameters
+CPU_MODEL=$(lscpu | grep "Model name" | awk -F : '{print $2}' | sed -e 's/^[[:space:]]*//')
+NO_CORES=$(lscpu | grep "Core(s) per socket:" | awk -F : '{print $2}' | sed -e 's/^[[:space:]]*//')
+NO_HT=$(lscpu | grep "Thread(s) per core:" | awk -F : '{print $2}' | sed -e 's/^[[:space:]]*//')
+NO_SOCKETS=$(lscpu | grep "Socket(s):" | awk -F : '{print $2}' | sed -e 's/^[[:space:]]*//')
+HSTNAME=$($HOSTNAME -s)
+
 # Local only binaries
 TRIDENT_SUPPORT=$BASE_DIR/bin/trident_support
 
@@ -184,20 +194,22 @@ TRIDENT_SUPPORT=$BASE_DIR/bin/trident_support
 EVT_CNT_DIR=$BASE_DIR/EventCounters
 
 ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ"`
+ST_UTSTM=$($DATE --date "$ST_TSTMP" +%s)
 
 # Prepend the node name to this string.
-OUTFILE="$($HOSTNAME).Trident.$TRIDENT_VER.$ST_TSTMP.log"
-IOOUTFILE="$($HOSTNAME).Trident.$TRIDENT_VER.$ST_TSTMP.io.log"
+OUTFILE="$HSTNAME.Trident.$ST_UTSTM.log"
 
 # Generate a random file in /tmp for pipe
 P1="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
 P2="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
+P3="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
 TOUT="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
 T2OUT="$($MKTEMP -u /dev/shm/Trident.XXXXXX)"
 
 # Create the pipe and ensure only I can access it for security reasons
 $MKFIFO -m 600 $P1
 $MKFIFO -m 600 $P2
+$MKFIFO -m 600 $P3
 
 #Supported event list detection
 EVNT_LIST=$($TRIDENT_SUPPORT $EVT_CNT_DIR 2>&1 | $GREP "architecture is detected" | $AWK -F '[<>]' '{print $2}')
@@ -215,7 +227,7 @@ NO_PARM=$(( $($ECHO "$CORE_EVTS" | $GREP -o "\-e" | wc -l) + $($ECHO "$UNCORE_EV
 
 
 #Automatically detect no of sockets
-NO_SOCKETS=$($CAT /proc/cpuinfo | $GREP "physical id" | $SORT -u | $WC -l)
+#NO_SOCKETS=$($CAT /proc/cpuinfo | $GREP "physical id" | $SORT -u | $WC -l)
 
 #Uncomment this to override to single socket mode
 #NO_SOCKETS=1
@@ -227,17 +239,19 @@ if (( $NO_SOCKETS > 1 )); then
 }
 fi
 
-
 #File header construction
 FILE_HEADER="TIMESTAMP"
+IO_HDR=$($IO printheader)
 for (( i=0; i<$NO_SOCKETS; i++ ))
 {
 	FILE_HEADER=$FILE_HEADER";S"$i" ""$($ECHO "$UNCORE_EVTS_HEADER" | $SED -e "s/;/;S$i /g")"";S"$i" ""$($ECHO "$CORE_EVTS_HEADER" | $SED -e "s/;/;S$i /g")"
 }
-$ECHO $FILE_HEADER";" > $OUTFILE
 
-IO_HDR=$($IO printheader)
-$ECHO "TIMESTAMP;"$IO_HDR";" > $IOOUTFILE
+$ECHO "" > $OUTFILE
+$ECHO "Trident started at |st:$ST_TSTMP| with specs |ve:"$TRIDENT_VER"|hn:"$HSTNAME"|cm:"$CPU_MODEL"|nc:"$NO_CORES"|ht:"$NO_HT"|ns:"$NO_SOCKETS"|" >> $OUTFILE
+$ECHO "" >> $OUTFILE
+
+$ECHO $FILE_HEADER";"$IO_HDR";" >> $OUTFILE
 
 #Find process with the name
 function p()
@@ -268,15 +282,22 @@ function trap_exit()
   do
 		ki "Trident.Record.IO.pl" SIGINT
   done
+
 	exec 5<>$P1
 	cat <&5 >/dev/null & cat_pid=$!
-	sleep 1
+	sleep 0.1
 	kill "$cat_pid"
 
 	exec 6<>$P2
   cat <&6 >/dev/null & cat_pid2=$!
-  sleep 1
+  sleep 0.1
   kill "$cat_pid2"
+
+	exec 7<>$P3
+  cat <&7 >/dev/null & cat_pid3=$!
+  sleep 0.1
+  kill "$cat_pid3"
+
 	printf "Terminated gracefully...\n"
 }
 
@@ -284,14 +305,25 @@ trap trap_exit SIGTERM SIGINT
 trap '' SIGHUP
 
 #Perf command collection
-$TIME -o $TOUT -f "Trident core and memory monitor resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &> /dev/null &
+$TIME -o $TOUT -f "core and memory [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &> /dev/null &
 
-$TIME -o $T2OUT -f "Trident IO monitor resource usage [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
+$TIME -o $T2OUT -f "IO [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
 
 #String formatting and timestamping
-$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $OUTFILE &
+$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
 
-$CAT $P2 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" >> $IOOUTFILE &
+(
+exec 30< <( cat $P3 )
+exec 40< <( cat $P2 )
+
+while IFS= $READ -r -u30 LINE1;
+do
+    IFS= $READ -r -u40 LINE2;
+		printf "%s %s;\n" "$LINE1" "$LINE2" >> $OUTFILE
+done
+exec 30<&- 40<&-
+$SED -i '$ d' $OUTFILE
+) &
 
 wait
 
@@ -306,16 +338,12 @@ $RM $P2
 
 $ECHO "" >> $OUTFILE
 $ECHO "Trident profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $OUTFILE
-$CAT $TOUT >> $OUTFILE
-$CAT $TOUT
-
-$ECHO "" >> $IOOUTFILE
-$ECHO "Trident IO profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $IOOUTFILE
-$CAT $T2OUT >> $IOOUTFILE
-$CAT $T2OUT
+printf "Trident resource usage by module, %s, %s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")" >> $OUTFILE
+printf "Trident resource usage by module, %s, %s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")"
 
 $RM $TOUT $T2OUT
 
 #-------------------------Script Ends-----------------------------
 
+exit 0
 #---EOF---
