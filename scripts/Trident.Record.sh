@@ -221,13 +221,11 @@ if [[ ! $EVNT_LIST == *.evts ]]; then
 fi
 source $EVT_CNT_DIR/$EVNT_LIST
 
+ARCH=$($ECHO $EVNT_LIST | $AWK -F . '{print $1}')
 
 #No of parameters detection to auto format string
 NO_PARM=$(( $($ECHO "$CORE_EVTS" | $GREP -o "\-e" | wc -l) + $($ECHO "$UNCORE_EVTS" | $GREP -o "\-e" | $WC -l) ))
 
-
-#Automatically detect no of sockets
-#NO_SOCKETS=$($CAT /proc/cpuinfo | $GREP "physical id" | $SORT -u | $WC -l)
 
 #Uncomment this to override to single socket mode
 #NO_SOCKETS=1
@@ -240,7 +238,7 @@ if (( $NO_SOCKETS > 1 )); then
 fi
 
 #File header construction
-FILE_HEADER="TIMESTAMP"
+FILE_HEADER="TIMESTAMP;EPOCH"
 IO_HDR=$($IO printheader)
 for (( i=0; i<$NO_SOCKETS; i++ ))
 {
@@ -248,7 +246,7 @@ for (( i=0; i<$NO_SOCKETS; i++ ))
 }
 
 $ECHO "" > $OUTFILE
-$ECHO "Trident started at |st:$ST_TSTMP| with specs |ve:"$TRIDENT_VER"|hn:"$HSTNAME"|cm:"$CPU_MODEL"|nc:"$NO_CORES"|ht:"$NO_HT"|ns:"$NO_SOCKETS"|" >> $OUTFILE
+$ECHO "Trident with specs,st=$ST_TSTMP,ve="$TRIDENT_VER",hn="$HSTNAME",cm="$CPU_MODEL",ar="$ARCH",nc="$NO_CORES",ht="$NO_HT",ns="$NO_SOCKETS",in="$INTERVAL >> $OUTFILE
 $ECHO "" >> $OUTFILE
 
 $ECHO $FILE_HEADER";"$IO_HDR";" >> $OUTFILE
@@ -310,7 +308,7 @@ $TIME -o $TOUT -f "core and memory [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF sta
 $TIME -o $T2OUT -f "IO [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
 
 #String formatting and timestamping
-$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;" | $AWK -F ";" 'NF>12 { printf $1";"$5"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s;",$1 }; printf "%9.3G;",$2; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
+$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;%.s;" | $AWK -F ";" 'NF>12 { printf $1";"$2";"$6"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s; %s;",$1,$2 }; printf "%9.3G;",$3; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
 
 (
 exec 30< <( cat $P3 )

@@ -18,6 +18,8 @@ FACTOR=4
 
 function Parse()
 {
+		STARTTIMESTAMP=$( echo $1 | awk -F "." '{for (i=1; i<=NF; i++ ){ if( $i ~ /[0-2][0-9]:[0-5][0-9]:[0-5][0-9]/ ) printf $i"."$(i+1) }}' )
+
 		echo "\"Timestamp\"; \"slots s0\"; \"fe bound s0\"; \"bad spec s0\"; \"retiring s0\"; \"be bound s0\"; \
 		\"slots s1\"; \"fe bound s1\"; \"bad spec s1\"; \"retiring s1\"; \"be bound s1\"; \
 		\"S0 RBW\"; \"S0 WBW\"; \"S1 RBW\"; \"S1 WBW\"; \"RM BW\"; \"TOT BW\"; \
@@ -25,8 +27,6 @@ function Parse()
 		\"S0 IPC\"; \"S1 IPC\"; \"RM IPC\"; \
 		\"RATIO P0\"; \"RATIO P1\"; \"RATIO P2\"; \"RATIO P3\"; \"RATIO P4\"; \"RATIO P5\"; \"RATIO P6\"; \"RATIO P7\";\
 		\"S0 PO\"; \"S0 PM\"; \"S1 PO\"; \"S1 PM\"" > $1".proc"
-
-		STARTTIMESTAMP=$( echo $1 | awk -F "." '{for (i=1; i<=NF; i++ ){ if( $i ~ /[0-2][0-9]:[0-5][0-9]:[0-5][0-9]/ ) printf $i"."$(i+1) }}' )
 
 		#echo $STARTTIMESTAMP
 
@@ -330,7 +330,7 @@ function Plot()
 		set yrange [0:]
 
 		plot '$1.proc' u  ( ( ( \$12 + \$14 ) ) ) t "Read" lc rgb '#386CB0', \
-				'' u  ( ( ( \$12 + \$14 + \$13 + \$15 ) ) ) t "Write" lc rgb '#F0027F';
+				'' u  ( ( ( \$13 + \$15 ) ) ) t "Write" lc rgb '#F0027F';
 
 		set output '$1.scale$2.uarch.svg'; 
 		set ylabel "Top down analysis split"
