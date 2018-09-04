@@ -137,13 +137,10 @@ while(1) {
                                                    $$d2{wok}        - $$d1{wok},
                                                    $$d2{iotime}     - $$d1{iotime}
                                                   );
-    my $rrate = $rsectors*512/1000 / $elapsed;
-    my $wrate = $wsectors*512/1000 / $elapsed;
-    my $rioprate = $rok / $elapsed;
-    my $wioprate = $wok / $elapsed;
-    my $pcutil = $deltioms / $elapsed / 10.0;
+    my $rkb = $rsectors*512/1000;
+    my $wkb = $wsectors*512/1000;
     print ";" if $didx;
-    printf "%6s;%8.2f;%8.2f;%8.2f;%8.2f;%8.2f", $dname,$rioprate,$rrate,$wioprate,$wrate,$pcutil;
+    printf "%6s;%8d;%8.2f;%8d;%8.2f;%8d", $dname,$rok,$rkb,$wok,$wkb,$deltioms;
     $didx++;
   }
   print "\n" if $didx;
