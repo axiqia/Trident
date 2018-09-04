@@ -225,25 +225,37 @@ ARCH=$($ECHO $EVNT_LIST | $AWK -F . '{print $1}')
 
 #No of parameters detection to auto format string
 NO_PARM=$(( $($ECHO "$CORE_EVTS" | $GREP -o "\-e" | wc -l) + $($ECHO "$UNCORE_EVTS" | $GREP -o "\-e" | $WC -l) ))
-
+SOCKP=4
 
 #Uncomment this to override to single socket mode
 #NO_SOCKETS=1
 
 if (( $NO_SOCKETS > 1 )); then
 {
-	PERF_SOCK_CMD="--per-socket"
+	PERF_SOCK_CMD="-A --per-socket"
 	NO_PARM=$(( $NO_PARM * $NO_SOCKETS ))
+	SOCKP=6
 }
 fi
 
 #File header construction
 FILE_HEADER="TIMESTAMP;EPOCH"
 IO_HDR=$($IO printheader)
-for (( i=0; i<$NO_SOCKETS; i++ ))
+
+if (( $NO_SOCKETS > 1 )); then
 {
-	FILE_HEADER=$FILE_HEADER";S"$i" ""$($ECHO "$UNCORE_EVTS_HEADER" | $SED -e "s/;/;S$i /g")"";S"$i" ""$($ECHO "$CORE_EVTS_HEADER" | $SED -e "s/;/;S$i /g")"
+	for (( i = 0; i < $NO_SOCKETS; i++ ))
+	{
+		FILE_HEADER=$FILE_HEADER";S"$i" ""$($ECHO "$UNCORE_EVTS_HEADER" | $SED -e "s/;/;S$i /g")"";S"$i" ""$($ECHO "$CORE_EVTS_HEADER" | $SED -e "s/;/;S$i /g")"
+	}
 }
+else
+{
+	FILE_HEADER=$FILE_HEADER";"$($ECHO "$UNCORE_EVTS_HEADER")";"$($ECHO "$CORE_EVTS_HEADER")
+}
+fi
+
+#echo "$FILE_HEADER"
 
 $ECHO "" > $OUTFILE
 $ECHO "Trident with specs,st=$ST_TSTMP,ve="$TRIDENT_VER",hn="$HSTNAME",cm="$CPU_MODEL",ar="$ARCH",nc="$NO_CORES",ht="$NO_HT",ns="$NO_SOCKETS",in="$INTERVAL >> $OUTFILE
@@ -302,13 +314,17 @@ function trap_exit()
 trap trap_exit SIGTERM SIGINT
 trap '' SIGHUP
 
+
+PERF_CMD="$PERF stat -x \; -o $P1 -c -a $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION"
+
 #Perf command collection
-$TIME -o $TOUT -f "core and memory [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF stat -x \; -o $P1 -a -A $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS $CORE_EVTS $SLEEP $DURATION &> /dev/null &
+$TIME -o $TOUT -f "core and memory [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF_CMD &> /dev/null &
+#echo "$PERF_CMD"
 
 $TIME -o $T2OUT -f "IO [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
 
 #String formatting and timestamping
-$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;%.s;" | $AWK -F ";" 'NF>12 { printf $1";"$2";"$6"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s; %s;",$1,$2 }; printf "%9.3G;",$3; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
+$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;%.s;" | $AWK -v AVSOCKP="$SOCKP" -F ";" 'NF>5 { printf $1";"$2";"$AVSOCKP"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s; %s;",$1,$2 }; printf "%9.3G;",$3; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
 
 (
 exec 30< <( cat $P3 )
