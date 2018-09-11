@@ -228,7 +228,7 @@ NO_PARM=$(( $($ECHO "$CORE_EVTS" | $GREP -o "\-e" | wc -l) + $($ECHO "$UNCORE_EV
 SOCKP=4
 
 #Uncomment this to override to single socket mode
-#NO_SOCKETS=1
+NO_SOCKETS=1
 
 if (( $NO_SOCKETS > 1 )); then
 {
