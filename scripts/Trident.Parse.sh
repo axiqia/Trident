@@ -25,6 +25,15 @@ ParseHeader()
   }
   fi
 
+	BASHV=$(bash -c 'echo $BASH_VERSION' | awk -F . '{print $1"."$2}')
+
+	if (( $( echo "scale=2; $BASHV < 4.4" | bc -l ) )); then
+	{
+    printf "Trident Parser Err: Need Bash >= v4.4 \n"
+    exit 1
+  }
+  fi
+
 	printf "Trident Parser Inf: Working on %s\n" "$1"
 	ParseStr=$(head -n2 $1 | grep "with specs")
 	if [ -z "$ParseStr" ]; then
@@ -473,10 +482,11 @@ ParseData()
 
 	AWK_CMD+="}'"
 
-	OFNAME=$( echo $1 | awk -F . '{print $1"."$2"."$3}' )
-	OFNAME+=".$SCALE.proc"
+	UFNAME=$( echo $1 | awk -F . '{print $1"."$2"."$3}' )
+	UFNAME+=".$SCALE"
+	OFNAME="$UFNAME.proc"
 
-	echo "$AWK_CMD" > RunParse.sh
+	#echo "$AWK_CMD" > RunParse.sh
 	#( bash RunParse.sh ) > $OFNAME
 	#( rm RunParse.sh )
 	( echo "$AWK_CMD" | /usr/bin/env bash > $OFNAME )
@@ -486,7 +496,9 @@ ParseData()
 
 	if (( $((PROC * SCALE)) < $((ORIG - 5)) ));
 	then
+			BADFNAME="$UFNAME.badproc"
 			echo "Trident Parser Err:Records processing mismatch Orig:$ORIG Proc:$PROC"
+			mv $OFNAME $BADFNAME
 			exit 1
 	fi
 
@@ -631,6 +643,7 @@ MemoryAnalysis()
 	TRAN_LABEL_Y=0.9
 	BAND_LABEL_Y=2
 
+	GENGRAPH_NAMES+=("$UFNAME.me.svg")
 	GNUPLOT_STR+=("set output '$UFNAME.me.svg';")
 	GNUPLOT_STR+=("set multiplot layout 2,1;")
 	GNUPLOT_STR+=("set tmargin $TOP_MARGIN1;")
@@ -647,7 +660,7 @@ MemoryAnalysis()
 	GNUPLOT_STR+=("set yrange [0:];")
 	GNUPLOT_STR+=("set ytics add ( \" \" 0 );")
 	GNUPLOT_STR+=("L1=\"Bandwidth Analysis\";")
-	GNUPLOT_STR+=("set obj 10 rect at graph 0.095, graph $BAND_LABEL_Y size char strlen(L1)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	#GNUPLOT_STR+=("set obj 10 rect at graph 0.095, graph $BAND_LABEL_Y size char strlen(L1)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 10 L1 at graph 0.01, graph $BAND_LABEL_Y front;")
 	GNUPLOT_STR+=("")
 	unset PRM;
@@ -666,6 +679,7 @@ MemoryAnalysis()
 								"(Histogram Bin Width = %.2f second)\", $BIN ) \\" \
 								"offset 0,1 tc lt 1;")
 	GNUPLOT_STR+=("L2=\"Transaction Analysis\";")
+	GNUPLOT_STR+=("set obj 10 rect at graph 0.095, graph $BAND_LABEL_Y size char strlen(L1)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set obj 20 rect at graph 0.105, graph $TRAN_LABEL_Y size char strlen(L2)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 20 L2 at graph 0.01, graph $TRAN_LABEL_Y front;")
 	GNUPLOT_STR+=("set tmargin 0;")
@@ -699,6 +713,7 @@ IOAnalysis()
 	TRAN_LABEL_Y=0.9
 	BAND_LABEL_Y=2
 
+	GENGRAPH_NAMES+=("$UFNAME.io.svg")
 	GNUPLOT_STR+=("set output '$UFNAME.io.svg';")
 	GNUPLOT_STR+=("set multiplot layout 2,1;")
 	GNUPLOT_STR+=("set tmargin $TOP_MARGIN1;")
@@ -715,7 +730,7 @@ IOAnalysis()
 	GNUPLOT_STR+=("set yrange [0:];")
 	GNUPLOT_STR+=("set ytics add ( \" \" 0 );")
 	GNUPLOT_STR+=("L1=\"Transfer Rate Analysis\";")
-	GNUPLOT_STR+=("set obj 10 rect at graph 0.125, graph $BAND_LABEL_Y size char strlen(L1)-4.5, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	#GNUPLOT_STR+=("set obj 10 rect at graph 0.125, graph $BAND_LABEL_Y size char strlen(L1)-4.5, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 10 L1 at graph 0.022, graph $BAND_LABEL_Y front;")
 	GNUPLOT_STR+=("")
 
@@ -743,6 +758,7 @@ IOAnalysis()
 								"(Histogram Bin Width = %.2f second)\", $BIN ) \\" \
 								"offset 0,1 tc lt 1;")
 	GNUPLOT_STR+=("L2=\"Operation Rate Analysis\";")
+	GNUPLOT_STR+=("set obj 10 rect at graph 0.125, graph $BAND_LABEL_Y size char strlen(L1)-4.5, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set obj 20 rect at graph 0.125, graph $TRAN_LABEL_Y size char strlen(L2)-5, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 20 L2 at graph 0.02, graph $TRAN_LABEL_Y front;")
 	GNUPLOT_STR+=("set tmargin 0;")
@@ -791,6 +807,7 @@ CoreAnalysis()
 	TRAN_LABEL_Y=0.9
 	BAND_LABEL_Y=2
 
+	GENGRAPH_NAMES+=("$UFNAME.co.svg")
 	GNUPLOT_STR+=("set output '$UFNAME.co.svg';")
 	GNUPLOT_STR+=("set multiplot layout 2,1;")
 	GNUPLOT_STR+=("set tmargin $TOP_MARGIN1;")
@@ -807,7 +824,7 @@ CoreAnalysis()
 	GNUPLOT_STR+=("set yrange [0:4];")
 	GNUPLOT_STR+=("set ytics add offset 0.7,0.3;")
 	GNUPLOT_STR+=("L1=\"Efficiency Analysis\";")
-	GNUPLOT_STR+=("set obj 10 rect at graph 0.092, graph $BAND_LABEL_Y size char strlen(L1)-5, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	#GNUPLOT_STR+=("set obj 10 rect at graph 0.092, graph $BAND_LABEL_Y size char strlen(L1)-5, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 10 L1 at graph 0.01, graph $BAND_LABEL_Y front;")
 	GNUPLOT_STR+=("")
 
@@ -838,6 +855,7 @@ CoreAnalysis()
 								"(Histogram Bin Width = %.2f second)\", $BIN ) \\" \
 								"offset 0,1 tc lt 1;")
 	GNUPLOT_STR+=("L2=\"Top-Down Analysis\";")
+	GNUPLOT_STR+=("set obj 10 rect at graph 0.092, graph $BAND_LABEL_Y size char strlen(L1)-5, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set obj 20 rect at graph 0.092, graph $TRAN_LABEL_Y size char strlen(L2)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 20 L2 at graph 0.01, graph $TRAN_LABEL_Y front;")
 	GNUPLOT_STR+=("set tmargin 0;")
@@ -850,7 +868,6 @@ CoreAnalysis()
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:1];")
 	GNUPLOT_STR+=("set ytics 0.1;")
-	ccc
 	GNUPLOT_STR+=("")
 
 	unset PRM;
@@ -872,6 +889,7 @@ CoreBackendAnalysis()
   TRAN_LABEL_Y=0.9
   BAND_LABEL_Y=2
 
+	GENGRAPH_NAMES+=("$UFNAME.cb.svg")
   GNUPLOT_STR+=("set output '$UFNAME.cb.svg';")
 	GNUPLOT_STR+=("set tmargin 1;")
   GNUPLOT_STR+=("set rmargin 1;")
@@ -906,13 +924,20 @@ CoreBackendAnalysis()
 
 PlotGN()
 {
-	/data/smuralid/Tools/gnuplot-gnuplot-main/src/gnuplot <<-EOFMarker
+	GNUPLOTV=$(gnuplot -V | awk '{print $2}')
+
+  if (( $( echo "scale=2; $GNUPLOTV < 5.2" | bc -l ) )); then
+  {
+    printf "Trident Parser Err: Need Gnuplot >= v5.2 \n"
+    exit 1
+  }
+  fi
+
+	gnuplot <<-EOFMarker
 	$(for (( i = 0; i < ${#GNUPLOT_STR[@]}; i++ )); do echo ${GNUPLOT_STR[i]}; done) 
 	EOFMarker
 	
-	(for (( i = 0; i < ${#GNUPLOT_STR[@]}; i++ )); do echo ${GNUPLOT_STR[i]}; done) 
-
-	#echo $GNUPLOT_STR
+	#(for (( i = 0; i < ${#GNUPLOT_STR[@]}; i++ )); do echo ${GNUPLOT_STR[i]}; done) 
 }
 
 Parse()
@@ -924,23 +949,28 @@ Parse()
 	ParseData $1
 }
 
-SetupPlot $1
+Plot()
+{
+	SetupPlot $1
 
-SetupPlotGN
-MemoryAnalysis
-PlotGN
+	SetupPlotGN
+	MemoryAnalysis
+	PlotGN
 
-SetupPlotGN
-IOAnalysis
-PlotGN
+	SetupPlotGN
+	IOAnalysis
+	PlotGN
 
-SetupPlotGN
-CoreAnalysis
-PlotGN
+	SetupPlotGN
+	CoreAnalysis
+	PlotGN
 
-SetupPlotGN
-CoreBackendAnalysis
-PlotGN
+	SetupPlotGN
+	CoreBackendAnalysis
+	PlotGN
+}
 
-echo "==="
+Plot $1
+
+
 
