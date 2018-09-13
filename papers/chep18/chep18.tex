@@ -1,0 +1,118 @@
+%%%%%%%%%%%%%%%%%%%%%%% file template.tex %%%%%%%%%%%%%%%%%%%%%%%%%
+%
+% This is a template file for Web of Conferences Journal
+%
+% Copy it to a new file with a new name and use it as the basis
+% for your article
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%% EDP Science %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%%%\documentclass[option]{webofc}
+%%% "twocolumn" for typesetting an article in two columns format (default one column)
+%
+\documentclass{webofc}
+\usepackage[varg]{txfonts}   % Web of Conferences font
+%
+% Put here some packages required or/and some personnal commands
+%
+%
+\begin{document}
+%
+\title{Trident : An Automated System Tool for \\ Collecting and Analyzing Hardware Performance Counters}
+
+\author{\firstname{Servesh} \lastname{Muralidharan}\inst{1}\fnsep\thanks{\email{smuralid@cern.ch}} \and
+        \firstname{David} \lastname{Smith}\inst{1}\fnsep\thanks{\email{dhsmith@cern.ch}}
+}
+
+\institute{CERN}
+
+\abstract{%
+Trident, a tool to use low level metrics derived from hardware counters to understand Core, Memory and I/O utilisation and bottlenecks. The collection of time series of these low level counters does not induce significant overhead to the execution of the application.
+
+The Understanding Performance team is investigation on a new node characterization tool, `Trident', that can look at various low level metrics with respect to the Core, Memory and I/O. Trident uses a three pronged approach to analysing node's utilisation and understand the stress on different parts of the node based on the given job. Currently core metrics such as memory bandwidth, core utilization, active processor cycles, etc., are being collected. Interpretation of the data is often non intuitive. The tool converts the data into derived metrics that are then represented as a system wide top-down analysis that helps developers and site managers understand the application behavior without the need for in-depth expertise of architecture details.
+}
+%
+\maketitle
+%
+\section{Introduction}
+\label{intro}
+Your text comes here. Separate text sections with
+\section{Section title}
+\label{sec-1}
+For bibliography use \cite{RefJ}
+\subsection{Subsection title}
+\label{sec-2}
+Don't forget to give each section, subsection, subsubsection, and
+paragraph a unique label (see Sect.~\ref{sec-1}).
+
+For one-column wide figures use syntax of figure~\ref{fig-1}
+%\begin{figure}[h]
+%% Use the relevant command for your figure-insertion program
+%% to insert the figure file.
+%\centering
+%\includegraphics[width=1cm,clip]{tiger}
+%\caption{Please write your figure caption here}
+%\label{fig-1}       % Give a unique label
+%\end{figure}
+
+%For two-column wide figures use syntax of figure~\ref{fig-2}
+%\begin{figure*}
+%\centering
+%% Use the relevant command for your figure-insertion program
+%% to insert the figure file. See example above.
+%% If not, use
+%\vspace*{5cm}       % Give the correct figure height in cm
+%\caption{Please write your figure caption here}
+%\label{fig-2}       % Give a unique label
+%\end{figure*}
+
+%For figure with sidecaption legend use syntax of figure
+%\begin{figure}
+%% Use the relevant command for your figure-insertion program
+%% to insert the figure file.
+%\centering
+%\sidecaption
+%\includegraphics[width=5cm,clip]{tiger}
+%\caption{Please write your figure caption here}
+%\label{fig-3}       % Give a unique label
+%\end{figure}
+
+For tables use syntax in table~\ref{tab-1}.
+\begin{table}
+\centering
+\caption{Please write your table caption here}
+\label{tab-1}       % Give a unique label
+% For LaTeX tables you can use
+\begin{tabular}{lll}
+\hline
+first & second & third  \\\hline
+number & number & number \\
+number & number & number \\\hline
+\end{tabular}
+% Or use
+\vspace*{5cm}  % with the correct table height
+\end{table}
+%
+% BibTeX or Biber users please use (the style is already called in the class, ensure that the "woc.bst" style is in your local directory)
+% \bibliography{name or your bibliography database}
+%
+% Non-BibTeX users please use
+%
+\begin{thebibliography}{}
+%
+% and use \bibitem to create references.
+%
+\bibitem{RefJ}
+% Format for Journal Reference
+Journal Author, Journal \textbf{Volume}, page numbers (year)
+% Format for books
+\bibitem{RefB}
+Book Author, \textit{Book title} (Publisher, place, year) page numbers
+% etc
+\end{thebibliography}
+
+\end{document}
+
+% end of file template.tex
+
+<div id='footer'><table width='100%'><tr><td class='right'><a href='http://fusioninventory.org/'><span class='copyright'>FusionInventory 9.1+1.0 | copyleft <img src='/glpi/plugins/fusioninventory/pics/copyleft.png'/>  2010-2016 by FusionInventory Team</span></a></td></tr></table></div>
