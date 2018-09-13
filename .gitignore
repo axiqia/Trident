@@ -1,2 +1,6 @@
 bin/*
 *.swp
+*.svg
+*.log
+*.png
+*.proc
