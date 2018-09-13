@@ -1,7 +1,18 @@
 #!/usr/bin/env bash
 
-SCALE=${2:-1}
+# saner programming env: these switches turn some bugs into errors
+#set -o errexit -o pipefail -o noclobber -o nounset
+set -o pipefail -o noclobber -o nounset
 
+# Trident Parser
+#
+# Needs Bash >= 4.4
+# Needs Gnuplot >= 5.2
+#
+
+
+# ParseHeader
+#
 # Parses the header from the trident metric file
 # and sets up different information regarding it
 # after performing some sanity checks
@@ -307,7 +318,7 @@ FormatMetric()
 	unset PrintMetricFormat
 	unset PrintMetricName
 
-	AddPrintMetricFormat "Elapsed Time"		"%9.2F" "ETIME"
+	AddPrintMetricFormat "Elapsed Time"		"%9.2F" "ETIME"		"#000000"
 	AddPrintMetricFormat "Core Cycles" 		"%9.3G" "CO_CYCL"	"#A6D854"
 	AddPrintMetricFormat "IPC" 						"%5.2F"	"CO_INPC" "#8060C0"
 
@@ -316,8 +327,8 @@ FormatMetric()
 	AddPrintMetricFormat "Bad Spec" 			"%7.4F"	"CO_BSPC" "#0000CD"
 	AddPrintMetricFormat "Retiring" 			"%7.4F"	"CO_RTIR"	"#F08080"
 
-	declare -a EightColors=( '#666666' '#A6761D' '#7570B3' '#D95F02' \
-														'#E6AB02' '#66A61E' '#E7298A' '#1B9E77' );
+	declare -a EightColors=( '#238B45' '#74C476' '#CB181D' '#FB6A4A' \
+														'#FCAE91' '#BAE4B3' '#EDF8E9' '#FEE5D9' );
 	for (( ip = 0; ip < 8; ip++ ));
   do
     P1="Port"$ip
@@ -334,7 +345,7 @@ FormatMetric()
 	AddPrintMetricFormat "Page Hit"				"%7.4F"	"ME_PHIT"	"#66A61E"
 
 
-	AddPrintMetricFormat "Util"						"%5.2F"	"IO_UTIL" "#A6D854"
+	AddPrintMetricFormat "Util"						"%5.2F"	"IO_UTIL" "#FFDC00"
 	AddPrintMetricFormat "Read"						"%9.3G" "IO_REBW" "#66C2A5"
 	AddPrintMetricFormat "Write"					"%9.3G" "IO_WRBW"	"#8DA0CB"
 	AddPrintMetricFormat "Read"						"%9.3G" "IO_RIOP"	"#66C2A5"
@@ -489,7 +500,18 @@ ParseData()
 	#echo "$AWK_CMD" > RunParse.sh
 	#( bash RunParse.sh ) > $OFNAME
 	#( rm RunParse.sh )
-	( echo "$AWK_CMD" | /usr/bin/env bash > $OFNAME )
+
+	if [ -f $OFNAME ]; then
+		read -r -p "Existing $OFNAME found, Overwrite? [y/N] " response
+		response=${response,,}    # tolower
+		if [[ "$response" =~ ^(yes|y)$ ]]; then
+			rm $OFNAME
+		fi
+	fi
+
+	if [ ! -f $OFNAME ]; then
+		( echo "$AWK_CMD" | /usr/bin/env bash > $OFNAME )
+	fi
 
 	ORIG=$(grep -nR "Trident profiled" $1 | awk -F ":" '{print $1}')
 	PROC=$(cat $OFNAME | wc -l)
@@ -498,7 +520,9 @@ ParseData()
 	then
 			BADFNAME="$UFNAME.badproc"
 			echo "Trident Parser Err:Records processing mismatch Orig:$ORIG Proc:$PROC"
-			mv $OFNAME $BADFNAME
+			if [ -f $OFNAME ]; then
+				mv $OFNAME $BADFNAME
+			fi
 			exit 1
 	fi
 
@@ -514,7 +538,7 @@ SetupPlot()
 
 	UFNAME=$( echo $1 | awk -F . '{print $1"."$2"."$3}' )
 	UFNAME+=".$SCALE"
-	PFNAME=$( ls $UFNAME".proc" 2> /dev/null )
+	PFNAME=$( ls $UFNAME".proc" 2> /dev/null ) && true
   
 	if [ -z $PFNAME ]; then
   {
@@ -532,27 +556,42 @@ SetupPlot()
 	XTIC_STR=" "
 	for (( i = 1; i < $MAX_RECORD - $XTIC_OFF; i+=$XTIC_OFF ));
 	{
-		TS=$( tail -n+2 $PFNAME | sed "$i q;d"| awk -F ";" '{printf "%d", $1}' )
+		TS=$( tail -n+2 $PFNAME | sed "$i q;d" | awk -F ";" '{printf "%d", $1}' ) && true
 		XTIC_STR=$XTIC_STR"\"$TS\" $i, "
 	}
 
-	FTS=$( tail -n+2 $PFNAME | sed "$i q;d"| awk -F ";" '{printf "%d", $1}' )
+	FTS=$( tail -n+2 $PFNAME | sed "$i q;d"| awk -F ";" '{printf "%d", $1}' ) && true
 	XTIC_STR=$XTIC_STR"\"$FTS\" $i"
 	FIN_XTIC=$i
 }
 
 SetupPlotGN()
 {
+	#PLOT_TYPE="default";
 	GNUPLOT_STR=("reset")
 	case $PLOT_TYPE in
-		ppt)
+		png)
+			PLOT_FILE_EXT="png"
+			GNUPLOT_STR+=("set terminal pngcairo nocrop enhanced size 4000,2000 \\" \
+										"truecolor notransparent font \"Helvetica,30\";")
+			OBJ_SZ_OFF=4
+			ME_OBJ_X_OFF=-0.037
+			IO_OBJ_X_OFF=-0.042
+			CO_OBJ_X_OFF=-0.032
+			#GNUPLOT_STR+=("set key font \",24\";")
+			#GNUPLOT_STR+=("set ytics font \",24\";")
 			;;
 
-			*)
+		svg)
+			PLOT_FILE_EXT="svg"
 			GNUPLOT_STR+=("set terminal svg enhanced size 2000,1000 \\" \
 										"dynamic background rgb 'white' font \"Helvetica,30\";")
 			GNUPLOT_STR+=("set key font \",20\";")
-			GNUPLOT_STR+=("set ytics font \",28\";")
+			OBJ_SZ_OFF=0
+			ME_OBJ_X_OFF=0
+			IO_OBJ_X_OFF=0
+			CO_OBJ_X_OFF=0
+			#GNUPLOT_STR+=("set ytics font \",28\";")
 			;;
 	esac
 
@@ -563,9 +602,9 @@ SetupPlotGN()
 	GNUPLOT_STR+=("set key box opaque;")
 	GNUPLOT_STR+=("set key maxrows 1;")
 	GNUPLOT_STR+=("set style data histogram;")
-	GNUPLOT_STR+=("set style histogram rowstacked gap 1;")
+	GNUPLOT_STR+=("set style histogram rowstacked gap 0;")
 	GNUPLOT_STR+=("set style fill solid noborder;")
-	GNUPLOT_STR+=("set boxwidth 1;")
+	GNUPLOT_STR+=("set boxwidth 5;")
 	
 	GNUPLOT_STR+=("set xrange [1:$FIN_XTIC];")
 	GNUPLOT_STR+=("set ytics nomirror;")
@@ -643,21 +682,25 @@ MemoryAnalysis()
 	TRAN_LABEL_Y=0.9
 	BAND_LABEL_Y=2
 
-	GENGRAPH_NAMES+=("$UFNAME.me.svg")
-	GNUPLOT_STR+=("set output '$UFNAME.me.svg';")
+	ME_GRAPH="$UFNAME.me.$PLOT_FILE_EXT"
+	GENGRAPH_NAMES+=("$ME_GRAPH")
+  printf "Trident PlotGN Inf: Generating memory analysis $ME_GRAPH\n"
+	GNUPLOT_STR+=("set output '$ME_GRAPH';")
 	GNUPLOT_STR+=("set multiplot layout 2,1;")
 	GNUPLOT_STR+=("set tmargin $TOP_MARGIN1;")
 	GNUPLOT_STR+=("set rmargin 1.1;")
 	GNUPLOT_STR+=("set bmargin 0;")
-	GNUPLOT_STR+=("set lmargin 9.5;")
+	GNUPLOT_STR+=("set lmargin 10;")
 	GNUPLOT_STR+=("set title sprintf( \"Trident Beta-v4 - Memory Access Classification\" ) offset 0,-1 tc rgb '#000099';")
 	GNUPLOT_STR+=("")
 	
 	GNUPLOT_STR+=("unset xtics;")
 	GNUPLOT_STR+=("unset ylabel;")
-	GNUPLOT_STR+=("set label 30 \"Memory Access (Bytes)\" at graph -0.09, graph 0.2 rotate by 90 tc lt 3;")
+	#GNUPLOT_STR+=("set label 30 \"Memory Access (Bytes)\" at graph -0.05, graph 0.2 rotate by 90 tc lt 3;")
+	GNUPLOT_STR+=("set ylabel \"Memory Acess (Bytes)\" offset 2,0 tc rgb '#9966FF';")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:];")
+	GNUPLOT_STR+=("set ytics offset 0.7;")
 	GNUPLOT_STR+=("set ytics add ( \" \" 0 );")
 	GNUPLOT_STR+=("L1=\"Bandwidth Analysis\";")
 	#GNUPLOT_STR+=("set obj 10 rect at graph 0.095, graph $BAND_LABEL_Y size char strlen(L1)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
@@ -679,8 +722,8 @@ MemoryAnalysis()
 								"(Histogram Bin Width = %.2f second)\", $BIN ) \\" \
 								"offset 0,1 tc lt 1;")
 	GNUPLOT_STR+=("L2=\"Transaction Analysis\";")
-	GNUPLOT_STR+=("set obj 10 rect at graph 0.095, graph $BAND_LABEL_Y size char strlen(L1)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
-	GNUPLOT_STR+=("set obj 20 rect at graph 0.105, graph $TRAN_LABEL_Y size char strlen(L2)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	GNUPLOT_STR+=("set obj 10 rect at graph 0.095+$ME_OBJ_X_OFF, graph $BAND_LABEL_Y size char strlen(L1)-3+$OBJ_SZ_OFF, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	GNUPLOT_STR+=("set obj 20 rect at graph 0.105+$ME_OBJ_X_OFF, graph $TRAN_LABEL_Y size char strlen(L2)-3+$OBJ_SZ_OFF, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 20 L2 at graph 0.01, graph $TRAN_LABEL_Y front;")
 	GNUPLOT_STR+=("set tmargin 0;")
 	GNUPLOT_STR+=("set bmargin 2;")
@@ -688,7 +731,7 @@ MemoryAnalysis()
 	GNUPLOT_STR+=("set xtics ( $XTIC_STR );")
 	GNUPLOT_STR+=("set xtics nomirror;")
 	GNUPLOT_STR+=("")
-	GNUPLOT_STR+=("set ylabel \"Memory transaction type\" offset 0,-0.5 tc rgb '#9966FF';")
+	GNUPLOT_STR+=("set ylabel \"Memory transaction type\" offset -0.75,-0.5 tc rgb '#9966FF';")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:$MAX_TRAN];")
 	GNUPLOT_STR+=("set ytics add ( \" \" $MAX_TRAN );")
@@ -713,21 +756,24 @@ IOAnalysis()
 	TRAN_LABEL_Y=0.9
 	BAND_LABEL_Y=2
 
-	GENGRAPH_NAMES+=("$UFNAME.io.svg")
-	GNUPLOT_STR+=("set output '$UFNAME.io.svg';")
+	IO_GRAPH="$UFNAME.io.$PLOT_FILE_EXT"
+	GENGRAPH_NAMES+=("$IO_GRAPH")
+  printf "Trident PlotGN Inf: Generating IO analysis $IO_GRAPH\n"
+	GNUPLOT_STR+=("set output '$IO_GRAPH';")
 	GNUPLOT_STR+=("set multiplot layout 2,1;")
 	GNUPLOT_STR+=("set tmargin $TOP_MARGIN1;")
 	GNUPLOT_STR+=("set rmargin 6.5;")
 	GNUPLOT_STR+=("set bmargin 0;")
-	GNUPLOT_STR+=("set lmargin 8.5;")
+	GNUPLOT_STR+=("set lmargin 10;")
 	GNUPLOT_STR+=("set title sprintf( \"Trident Beta-v4 - IO Access Classification\" ) offset 0,-1 tc rgb '#000099';")
 	GNUPLOT_STR+=("")
 	
 	GNUPLOT_STR+=("unset xtics;")
-	GNUPLOT_STR+=("set ylabel \"IO Access (KB/s)\" offset 3 tc lt 3;")
+	GNUPLOT_STR+=("set ylabel \"IO Access (KB/s)\" offset 2 tc lt 3;")
 	GNUPLOT_STR+=("set y2label \"IO Utilization (%)\" offset -3 tc lt 7;")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:];")
+	GNUPLOT_STR+=("set ytics offset 0.7,0.3;")
 	GNUPLOT_STR+=("set ytics add ( \" \" 0 );")
 	GNUPLOT_STR+=("L1=\"Transfer Rate Analysis\";")
 	#GNUPLOT_STR+=("set obj 10 rect at graph 0.125, graph $BAND_LABEL_Y size char strlen(L1)-4.5, char 1.05 fc rgb \"#50FFFFFF\" front;")
@@ -742,6 +788,7 @@ IOAnalysis()
   FindMetricLocation "IO_UTIL" "PRM2"
 	UTIL_CURVE="u ( \$$(( ${PRM2[ 0 ]} + 1 )) ) t \"${PrintMetricHeader[ ${PRM2[ 0 ]} ]}\" "
   UTIL_CURVE+="w boxes fs solid 1 noborder axes x1y2 lc rgb '${PrintMetricColor[ ${PRM2[ 0 ]} ]}', '' \\"
+  #UTIL_CURVE+="w lines axes x1y2 lc rgb '${PrintMetricColor[ ${PRM2[ 0 ]} ]}' lw 4, '' \\"
 
 
 	unset PRM;
@@ -758,8 +805,8 @@ IOAnalysis()
 								"(Histogram Bin Width = %.2f second)\", $BIN ) \\" \
 								"offset 0,1 tc lt 1;")
 	GNUPLOT_STR+=("L2=\"Operation Rate Analysis\";")
-	GNUPLOT_STR+=("set obj 10 rect at graph 0.125, graph $BAND_LABEL_Y size char strlen(L1)-4.5, char 1.05 fc rgb \"#50FFFFFF\" front;")
-	GNUPLOT_STR+=("set obj 20 rect at graph 0.125, graph $TRAN_LABEL_Y size char strlen(L2)-5, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	GNUPLOT_STR+=("set obj 10 rect at graph 0.125+$IO_OBJ_X_OFF, graph $BAND_LABEL_Y size char strlen(L1)-4.5+$OBJ_SZ_OFF, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	GNUPLOT_STR+=("set obj 20 rect at graph 0.125+$IO_OBJ_X_OFF, graph $TRAN_LABEL_Y size char strlen(L2)-5+$OBJ_SZ_OFF, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 20 L2 at graph 0.02, graph $TRAN_LABEL_Y front;")
 	GNUPLOT_STR+=("set tmargin 0;")
 	GNUPLOT_STR+=("set bmargin 2;")
@@ -767,7 +814,7 @@ IOAnalysis()
 	GNUPLOT_STR+=("set xtics ( $XTIC_STR );")
 	GNUPLOT_STR+=("set xtics nomirror;")
 	GNUPLOT_STR+=("")
-	GNUPLOT_STR+=("set ylabel \"IO Operations per second\" offset 1,0 tc rgb '#9966FF';")
+	GNUPLOT_STR+=("set ylabel \"IO Operations per second\" offset 0,0 tc rgb '#9966FF';")
 	#GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("")
 	#GNUPLOT_STR+=("set yrange [0:500];")
@@ -807,11 +854,13 @@ CoreAnalysis()
 	TRAN_LABEL_Y=0.9
 	BAND_LABEL_Y=2
 
-	GENGRAPH_NAMES+=("$UFNAME.co.svg")
-	GNUPLOT_STR+=("set output '$UFNAME.co.svg';")
+	CO_GRAPH="$UFNAME.co.$PLOT_FILE_EXT"
+	GENGRAPH_NAMES+=("$CO_GRAPH")
+  printf "Trident PlotGN Inf: Generating core efficiency analysis $CO_GRAPH\n"
+	GNUPLOT_STR+=("set output '$CO_GRAPH';")
 	GNUPLOT_STR+=("set multiplot layout 2,1;")
 	GNUPLOT_STR+=("set tmargin $TOP_MARGIN1;")
-	GNUPLOT_STR+=("set rmargin 9;")
+	GNUPLOT_STR+=("set rmargin 10;")
 	GNUPLOT_STR+=("set bmargin 0;")
 	GNUPLOT_STR+=("set lmargin 6;")
 	GNUPLOT_STR+=("set title sprintf( \"Trident Beta-v4 - Core Efficiency Classification\" ) offset 0,-1 tc rgb '#000099';")
@@ -819,7 +868,7 @@ CoreAnalysis()
 	
 	GNUPLOT_STR+=("unset xtics;")
 	GNUPLOT_STR+=("set ylabel \"IPC\" offset 3,0 tc lt 3;")
-	GNUPLOT_STR+=("set y2label \"Unhalted Cycles\" offset -4 tc lt 7;")
+	GNUPLOT_STR+=("set y2label \"Unhalted Cycles\" offset -3 tc lt 7;")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:4];")
 	GNUPLOT_STR+=("set ytics add offset 0.7,0.3;")
@@ -831,7 +880,7 @@ CoreAnalysis()
 	GNUPLOT_STR+=("set y2tics;")
 	GNUPLOT_STR+=("set autoscale y2;")
   GNUPLOT_STR+=("set y2range[0:];")
-  GNUPLOT_STR+=("set y2tics offset -0.7,0.3;" )
+  GNUPLOT_STR+=("set y2tics offset -1,0.3;" )
   GNUPLOT_STR+=("")
   unset PRM2;
   FindMetricLocation "CO_CYCL" "PRM2"
@@ -855,8 +904,8 @@ CoreAnalysis()
 								"(Histogram Bin Width = %.2f second)\", $BIN ) \\" \
 								"offset 0,1 tc lt 1;")
 	GNUPLOT_STR+=("L2=\"Top-Down Analysis\";")
-	GNUPLOT_STR+=("set obj 10 rect at graph 0.092, graph $BAND_LABEL_Y size char strlen(L1)-5, char 1.05 fc rgb \"#50FFFFFF\" front;")
-	GNUPLOT_STR+=("set obj 20 rect at graph 0.092, graph $TRAN_LABEL_Y size char strlen(L2)-3, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	GNUPLOT_STR+=("set obj 10 rect at graph 0.092+$CO_OBJ_X_OFF, graph $BAND_LABEL_Y size char strlen(L1)-5+$OBJ_SZ_OFF, char 1.05 fc rgb \"#50FFFFFF\" front;")
+	GNUPLOT_STR+=("set obj 20 rect at graph 0.092+$CO_OBJ_X_OFF, graph $TRAN_LABEL_Y size char strlen(L2)-3+$OBJ_SZ_OFF, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 20 L2 at graph 0.01, graph $TRAN_LABEL_Y front;")
 	GNUPLOT_STR+=("set tmargin 0;")
 	GNUPLOT_STR+=("set bmargin 2;")
@@ -868,6 +917,7 @@ CoreAnalysis()
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:1];")
 	GNUPLOT_STR+=("set ytics 0.1;")
+	GNUPLOT_STR+=("set ytics add ( \" \" 1 );")
 	GNUPLOT_STR+=("")
 
 	unset PRM;
@@ -889,8 +939,10 @@ CoreBackendAnalysis()
   TRAN_LABEL_Y=0.9
   BAND_LABEL_Y=2
 
-	GENGRAPH_NAMES+=("$UFNAME.cb.svg")
-  GNUPLOT_STR+=("set output '$UFNAME.cb.svg';")
+	CB_GRAPH="$UFNAME.cb.$PLOT_FILE_EXT"
+	GENGRAPH_NAMES+=("$CB_GRAPH")
+  printf "Trident PlotGN Inf: Generating core backend analysis $CB_GRAPH\n"
+  GNUPLOT_STR+=("set output '$CB_GRAPH';")
 	GNUPLOT_STR+=("set tmargin 1;")
   GNUPLOT_STR+=("set rmargin 1;")
   #GNUPLOT_STR+=("set bmargin 0;")
@@ -899,6 +951,7 @@ CoreBackendAnalysis()
 	GNUPLOT_STR+=("set ylabel \"Ratio of cycles the port is active\" offset 3,0 tc lt 3;")
 	GNUPLOT_STR+=("set autoscale y;")
   GNUPLOT_STR+=("set yrange [0:];")
+  GNUPLOT_STR+=("set ytics 0.2;")
   GNUPLOT_STR+=("set ytics add offset 0.7,0.3;")
 	GNUPLOT_STR+=("set xlabel sprintf ( \"Elapsed Time (seconds)\t\t \\" \
                 "(Histogram Bin Width = %.2f second)\", $BIN ) \\" \
@@ -970,7 +1023,129 @@ Plot()
 	PlotGN
 }
 
-Plot $1
+Combine()
+{
+  printf "Trident PlotGN Inf: Generating analysis overview $UFNAME.overview.png\n"
+	convert -border 20 -bordercolor '#00FF7D' $IO_GRAPH $IO_GRAPH.tmp &
+	convert -border 20 -bordercolor '#8200FF' $ME_GRAPH $ME_GRAPH.tmp &
+	convert -border 20 -bordercolor '#FF8C00' $CB_GRAPH $CB_GRAPH.tmp &
+	convert -border 20 -bordercolor '#FF0032' $CO_GRAPH $CO_GRAPH.tmp &
+	wait
+	convert $CB_GRAPH.tmp $CO_GRAPH.tmp +append $UFNAME.btile.png &
+	convert $IO_GRAPH.tmp $ME_GRAPH.tmp +append $UFNAME.ttile.png &
+	wait
+	convert -gravity Center $UFNAME.ttile.png $UFNAME.btile.png -append $UFNAME.overview.png
+	rm $UFNAME.btile.png $UFNAME.ttile.png $CB_GRAPH.tmp $CO_GRAPH.tmp $IO_GRAPH.tmp $ME_GRAPH.tmp
+}
 
+Usage()
+{
+    printf "Usage: $0 [OPTION] [TRIDENT LOG FILE] \n";
+    printf "\nOptions: \n"
+    printf "\t-s, --scale=SCALE \t Histogram binwidth \n";
+    printf "\t-p, --parse \t\t Parse the trident log file \n";
+    printf "\t-g, --graph \t\t Graph the parsed data file \n";
+    printf "\t-c, --combine \t\t Combine the graphs into a single overview, use with '-g' \n";
+    printf "\t-l, --svg \t\t Generate plots as vector graphs (Warning! very large output files) \n";
+    printf "\nReport bugs to smuralid@cern.ch.\n"
+    exit 4
+}
 
+! getopt --test > /dev/null 
+if [[ ${PIPESTATUS[0]} -ne 4 ]]; then
+    printf "Trident Parser Err: Unsupported environment, `getopt --test` failed. Please rectify.\n"
+    exit 1
+fi
+
+OPTIONS=s:vhpgcl
+LONGOPTS=scale:,verbose,help,parse,plot,combine,svg
+
+# -use ! and PIPESTATUS to get exit code with errexit set
+# -temporarily store output to be able to check for errors
+# -activate quoting/enhanced mode (e.g. by writing out ?--options?)
+# -pass arguments only via   -- "$@"   to separate them correctly
+! PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
+if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+    # e.g. return value is 1
+    #  then getopt has complained about wrong arguments to stdout
+		Usage
+fi
+# read getopt?s output this way to handle the quoting right:
+eval set -- "$PARSED"
+PLOT_TYPE="png";
+SCALE=1 
+v=n
+h=n
+g=n
+p=n
+c=n
+l=n
+
+# now enjoy the options in order and nicely split until we see --
+while true; do
+    case "$1" in
+        -s|--scale)
+            SCALE=$2
+            shift 2
+            ;;
+        -v|--verbose)
+            v=y
+            shift
+            ;;
+        -h|--help)
+            h=y
+            shift
+            ;;
+        -g|--graph)
+            g=y
+            shift
+            ;;
+        -p|--parse)
+            p=y
+            shift
+            ;;
+        -c|--combine)
+            c=y
+            shift
+            ;;
+        -l|--svg)
+            l=y
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            printf "Trident Parser Err: Unknown option <<<$1>>> \n"
+            exit 3
+            ;;
+    esac
+done
+
+if [[ $# -ne 1 ]] || [[ $h == 'y' ]]; then
+	Usage
+fi
+
+if ! [[ $SCALE =~ ^[0-9]+$ ]] || ((  $( echo "scale=2; $SCALE < 1" | bc -l ) )); then
+	printf "Trident Parser Err: scale should be a number >= 1\n"
+	exit 1
+fi
+
+#echo "verbose: $v, scale: $SCALE, in: $1"
+
+if [[ $g == 'y' ]]; then
+	Plot $1
+elif [[ $p == 'y' ]]; then
+	Parse $1
+elif [[ $l == 'y' ]]; then
+	PLOT_TYPE="svg";
+	Plot $1
+else
+	Usage
+fi
+
+if [[ $g == 'y' && $c == 'y' ]]; then
+	Combine
+fi
 
