@@ -1,15 +1,36 @@
 #!/usr/bin/env bash
-
+#
 # saner programming env: these switches turn some bugs into errors
-#set -o errexit -o pipefail -o noclobber -o nounset
 set -o pipefail -o noclobber -o nounset
 
-# Trident Parser
+#
+# Trident - Automated Node Performance Metrics Collection Tool
+#
+# Copyright (C) 2018, Servesh Muralidharan, IT-DI-WLCG-UP, CERN
+# Contact: servesh.muralidharan@cern.ch
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+#
+# Trident.Parse.sh - Trident Parser
 #
 # Needs Bash >= 4.4
 # Needs Gnuplot >= 5.2
 #
+# 
 
+#-------------------------Script Begins-----------------------------
 
 # ParseHeader
 #
@@ -604,7 +625,7 @@ SetupPlotGN()
 	GNUPLOT_STR+=("set style data histogram;")
 	GNUPLOT_STR+=("set style histogram rowstacked gap 0;")
 	GNUPLOT_STR+=("set style fill solid noborder;")
-	GNUPLOT_STR+=("set boxwidth 5;")
+	GNUPLOT_STR+=("set boxwidth 1;")
 	
 	GNUPLOT_STR+=("set xrange [1:$FIN_XTIC];")
 	GNUPLOT_STR+=("set ytics nomirror;")
@@ -1042,7 +1063,8 @@ Usage()
 {
     printf "Usage: $0 [OPTION] [TRIDENT LOG FILE] \n";
     printf "\nOptions: \n"
-    printf "\t-s, --scale=SCALE \t Histogram binwidth \n";
+    printf "\t-h, --help \t\t Print usage \n";
+    printf "\t-s, --scale=VALUE \t Histogram binwidth, VALUE >= 1\n";
     printf "\t-p, --parse \t\t Parse the trident log file \n";
     printf "\t-g, --graph \t\t Graph the parsed data file \n";
     printf "\t-c, --combine \t\t Combine the graphs into a single overview, use with '-g' \n";

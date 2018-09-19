@@ -1,3 +1,8 @@
+#!/usr/bin/env bash
+#
+# saner programming env: these switches turn some bugs into errors
+set -o pipefail -o noclobber -o nounset
+
 #
 # Trident - Automated Node Performance Metrics Collection Tool
 #
@@ -69,20 +74,91 @@
 #
 
 #-------------------------Script Begins-----------------------------
-#!/bin/bash
 
 #Version
 TRIDENT_VER=Beta-v4
+
+! getopt --test > /dev/null
+if [[ ${PIPESTATUS[0]} -ne 4 ]]; then
+    printf "Trident Error: Unsupported environment, `getopt --test` failed. Please rectify.\n"
+    exit 1
+fi
+
+OPTIONS=i:d:vh
+LONGOPTS=interval:duration:,verbose,help
+
+# -use ! and PIPESTATUS to get exit code with errexit set
+# -temporarily store output to be able to check for errors
+# -activate quoting/enhanced mode (e.g. by writing out ?--options?)
+# -pass arguments only via   -- "$@"   to separate them correctly
+! PARSED=$(getopt --options=$OPTIONS --longoptions=$LONGOPTS --name "$0" -- "$@")
+if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+    # e.g. return value is 1
+    #  then getopt has complained about wrong arguments to stdout
+    Usage
+fi
+# read getopt?s output this way to handle the quoting right:
+eval set -- "$PARSED"
+
+v=n
+h=n
 
 # Time interval to record processor data in seconds
 #
 # Default 1s for ~30MiB of data per day
 # Can be adjusted based on the data size that can
 # be collected
-USER_INTERVAL=${1:-1}
+USER_INTERVAL=1
 
 # Duration the script has to run in seconds
-DURATION=${2:-30000}
+DURATION=30000
+
+# now enjoy the options in order and nicely split until we see --
+while true; do
+    case "$1" in
+        -i|--interval)
+            USER_INTERVAL=$2
+            shift 2
+            ;;
+        -d|--duration)
+            DURATION=$2
+            shift 2
+            ;;
+				-v|--verbose)
+            v=y
+            shift
+            ;;
+        -h|--help)
+            h=y
+            shift
+            ;;
+				--)
+            shift
+            break
+            ;;
+        *)
+            printf "Trident Error: Unknown option <<<$1>>> \n"
+            exit 3
+            ;;
+    esac
+done
+
+if [[ $# -gt 0 ]] || [[ $h == 'y' ]] || \
+		! [[ $USER_INTERVAL =~ ^[0-9]+\.?[0-9]*$ ]]	|| (( $( echo "scale=2; $USER_INTERVAL < 0.1" | bc -l ) )) ||
+		! [[ $DURATION =~ ^[0-9]+$ ]] || (( $( echo "scale=2; $DURATION < 1" | bc -l ) )) || \
+		(( $( echo "scale=2; $DURATION < $USER_INTERVAL" | bc -l ) )); then 
+	  printf "Usage: $0 [OPTION] \n";
+    printf "\nOptions: \n"
+		printf "\t-h, --help \t\t Print usage \n";
+    printf "\t-i, --interval=VALUE \t Sampling interval in seconds, 60 > VALUE >= 0.1 \n";
+    printf "\t-d, --duration=VALUE \t Run interval in seconds, VALUE >= 1 \n";
+		printf "\nCtrl+c to exit script and finalize data before end of duration \n";
+		printf "\nReport bugs to smuralid@cern.ch.\n"
+    exit 4
+fi
+
+
+printf "Trident started with %.2fs interval for %ds duration >>>>\n" $USER_INTERVAL $DURATION
 
 #----------------------EOF User Parameters--------------------------
 
@@ -229,6 +305,7 @@ SOCKP=4
 
 #Uncomment this to override to single socket mode
 NO_SOCKETS=1
+PERF_SOCK_CMD=""
 
 if (( $NO_SOCKETS > 1 )); then
 {
@@ -324,11 +401,11 @@ $TIME -o $TOUT -f "core and memory [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF_CMD
 $TIME -o $T2OUT -f "IO [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
 
 #String formatting and timestamping
-$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;%.s;" | $AWK -v AVSOCKP="$SOCKP" -F ";" 'NF>5 { printf $1";"$2";"$AVSOCKP"\n" }' | $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s; %s;",$1,$2 }; printf "%9.3G;",$3; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
+$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;%.s;" | stdbuf -oL $AWK -v AVSOCKP="$SOCKP" -F ";" 'NF>5 { printf $1";"$2";"$AVSOCKP"\n" }' | stdbuf -oL $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s; %s;",$1,$2 }; printf "%9.3G;",$3; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
 
 (
-exec 30< <( cat $P3 )
-exec 40< <( cat $P2 )
+exec 30< <( $CAT $P3 )
+exec 40< <( $CAT $P2 )
 
 while IFS= $READ -r -u30 LINE1;
 do
@@ -353,7 +430,7 @@ $RM $P2
 $ECHO "" >> $OUTFILE
 $ECHO "Trident profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $OUTFILE
 printf "Trident resource usage by module, %s, %s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")" >> $OUTFILE
-printf "Trident resource usage by module, %s, %s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")"
+printf "<<<< Trident resource usage by module,\n\t%s,\n\t%s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")"
 
 $RM $TOUT $T2OUT
 

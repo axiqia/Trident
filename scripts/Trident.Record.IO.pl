@@ -30,7 +30,9 @@ use warnings;
 use strict;
 use Fcntl ':mode';
 use Time::HiRes qw(nanosleep clock_gettime CLOCK_MONOTONIC);
-use sigtrap qw(die normal-signals);
+#use sigtrap qw(die normal-signals);
+#use sigtrap qw/handler signal_handler normal-signals/;
+#sub signal_handler { exit }
 
 # enable autoflush on stderr and stdout
 select(STDERR);
@@ -96,7 +98,9 @@ if ($printheader) {
 my %devnext;
 my $starttime = monotime();
 my $linere = '\s+(\d+)\s+(\d+)\s+(.+)'.'\s+(\d+)'x11;
-while(1) {
+my $run = 1;
+while($run) {
+	use sigtrap handler => sub { $run = 0 }, 'INT';
   %devnext = ();
   open(SF, "< /proc/diskstats");
   while(<SF>) {
