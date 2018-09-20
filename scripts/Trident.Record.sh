@@ -74,6 +74,17 @@ set -o pipefail -o noclobber -o nounset
 #
 
 #-------------------------Script Begins-----------------------------
+Usage()
+{
+	printf "Usage: $0 [OPTION] \n";
+  printf "\nOptions: \n"
+  printf "\t-h, --help \t\t Print usage \n";
+  printf "\t-i, --interval=VALUE \t Sampling interval in seconds, 60 > VALUE >= 0.1 \n";
+  printf "\t-d, --duration=VALUE \t Run interval in seconds, VALUE >= 1 \n";
+  printf "\nCtrl+c to exit script and finalize data before end of duration \n";
+  printf "\nReport bugs to smuralid@cern.ch.\n"
+  exit 4
+}
 
 #Version
 TRIDENT_VER=Beta-v4
@@ -147,14 +158,7 @@ if [[ $# -gt 0 ]] || [[ $h == 'y' ]] || \
 		! [[ $USER_INTERVAL =~ ^[0-9]+\.?[0-9]*$ ]]	|| (( $( echo "scale=2; $USER_INTERVAL < 0.1" | bc -l ) )) ||
 		! [[ $DURATION =~ ^[0-9]+$ ]] || (( $( echo "scale=2; $DURATION < 1" | bc -l ) )) || \
 		(( $( echo "scale=2; $DURATION < $USER_INTERVAL" | bc -l ) )); then 
-	  printf "Usage: $0 [OPTION] \n";
-    printf "\nOptions: \n"
-		printf "\t-h, --help \t\t Print usage \n";
-    printf "\t-i, --interval=VALUE \t Sampling interval in seconds, 60 > VALUE >= 0.1 \n";
-    printf "\t-d, --duration=VALUE \t Run interval in seconds, VALUE >= 1 \n";
-		printf "\nCtrl+c to exit script and finalize data before end of duration \n";
-		printf "\nReport bugs to smuralid@cern.ch.\n"
-    exit 4
+		Usage
 fi
 
 
@@ -359,7 +363,7 @@ function ki()
 
 function trap_exit()
 {
-	printf "\nCaught exit request... Flushing fifos...\n"
+	printf "\nCaught exit request... Flushing fifos... "
 	while [ -n "$(p "/usr/bin/sleep")" ];
   do
     ki "sleep" SIGINT

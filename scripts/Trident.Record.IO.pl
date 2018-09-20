@@ -30,9 +30,6 @@ use warnings;
 use strict;
 use Fcntl ':mode';
 use Time::HiRes qw(nanosleep clock_gettime CLOCK_MONOTONIC);
-#use sigtrap qw(die normal-signals);
-#use sigtrap qw/handler signal_handler normal-signals/;
-#sub signal_handler { exit }
 
 # enable autoflush on stderr and stdout
 select(STDERR);
