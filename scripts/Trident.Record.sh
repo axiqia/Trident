@@ -89,6 +89,10 @@ Usage()
 #Version
 TRIDENT_VER=Beta-v4
 
+#Simple lock
+lockfile -r 0 /dev/shm/Trident.lock || exit 1
+
+
 ! getopt --test > /dev/null
 if [[ ${PIPESTATUS[0]} -ne 4 ]]; then
     printf "Trident Error: Unsupported environment, `getopt --test` failed. Please rectify.\n"
@@ -342,6 +346,10 @@ $ECHO "" > $OUTFILE
 $ECHO "Trident with specs,st=$ST_TSTMP,ve="$TRIDENT_VER",hn="$HSTNAME",cm="$CPU_MODEL",ar="$ARCH",nc="$NO_CORES",ht="$NO_HT",ns="$NO_SOCKETS",in="$INTERVAL >> $OUTFILE
 $ECHO "" >> $OUTFILE
 
+if [[ $v == 'y' ]]; then
+	$CAT $OUTFILE
+fi
+
 $ECHO $FILE_HEADER";"$IO_HDR";" >> $OUTFILE
 
 #Find process with the name
@@ -390,6 +398,7 @@ function trap_exit()
   kill "$cat_pid3"
 
 	printf "Terminated gracefully...\n"
+	$RM -f /dev/shm/Trident.lock
 }
 
 trap trap_exit SIGTERM SIGINT
@@ -400,7 +409,10 @@ PERF_CMD="$PERF stat -x \; -o $P1 -c -a $PERF_SOCK_CMD -I $INTERVAL $UNCORE_EVTS
 
 #Perf command collection
 $TIME -o $TOUT -f "core and memory [cpu=%P,real=%es,user=%Us,sys=%Ss]" $PERF_CMD &> /dev/null &
-#echo "$PERF_CMD"
+
+if [[ $v == 'y' ]]; then
+	$ECHO "$PERF_CMD"
+fi
 
 $TIME -o $T2OUT -f "IO [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
 
@@ -430,6 +442,7 @@ DUR=$( echo "$EN - $ST" | bc )
 #Cleanup
 $RM $P1
 $RM $P2
+$RM $P3
 
 $ECHO "" >> $OUTFILE
 $ECHO "Trident profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $OUTFILE
@@ -437,6 +450,7 @@ printf "Trident resource usage by module, %s, %s\n" "$($CAT $TOUT | $TR -d "\n")
 printf "<<<< Trident resource usage by module,\n\t%s,\n\t%s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")"
 
 $RM $TOUT $T2OUT
+$RM -f /dev/shm/Trident.lock
 
 #-------------------------Script Ends-----------------------------
 
