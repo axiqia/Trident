@@ -7,7 +7,7 @@
 
 \begin{document}
 
-\title{Trident : An Automated System Tool for \\Collecting and Analyzing Hardware Performance Counters}
+\title{Trident : An Automated System Tool for \\Collecting and Analyzing Performance Counters}
 
 \author{\firstname{Servesh} \lastname{Muralidharan}\inst{1}\fnsep\thanks{\email{servesh.muralidharan@cern.ch}} \and
         \firstname{David} \lastname{Smith}\inst{1}\fnsep\thanks{\email{david.smith@cern.ch}}
@@ -26,17 +26,45 @@ The Understanding Performance team is investigation on a new node characterizati
 \section{Motivation}
 \label{sec:moti}
 
-Application performance can be characterized by a myriad of tools and techniques. Some of these tools rely on hardware and software performance counters built into a given system to analyze performance bottlenecks. These counters can come from performance monitoring units (PMUs) built into modern processors, storage devices, etc., or from software counters present in the underlying operating system. There is a vast variety of these counters and its often difficult to determine which counters are associated with a particular performance bottleneck in a fast and effective manner. To cater to this an approach called as Top-Down Analysis~\cite{6844459} was proposed, which utilized a hierarchical identification of areas of a processor and its associated metrics that can represent inefficiencies that arise due to this from an application.
+Application performance can be characterized by a myriad of tools and techniques. Some of them rely on hardware and software performance counters of a given system to analyze performance bottlenecks. These counters can come from performance monitoring units (PMUs) built into modern processors, memory controllers, etc., or from software counters present in the underlying operating system. The sheer variety of these counters makes it difficult to quickly narrow down to those associated with a particular performance bottleneck. To tackle this, an approach called as Top-Down Analysis~\cite{6844459} was developed based on the counters from Intel processor's PMU. In several cases, it was shown that this technique could be used to reliably identify inefficiencies in different areas of a processor that arise from an application.
 
-The effectiveness of Top-Down analysis lies in the fast identification of performance bottlenecks that arises from the interaction of the application code and the given architecture. However this still relies on classical profiling approach where hotspots are identified in a finite code space that account for a large percentage of the execution time. However typical High-Energy Physics (HEP) code base exhibit sparse compute code spread over several thousand C++ classes. In such a scenario it becomes difficult to use the classical or fine grained profiling approach. In this paper we propose Trident, a tailored profiling tool for such use cases. 
+The effectiveness of Top-Down analysis lies in the fast diagnosis of performance bottlenecks by investigating the derived metrics in a hierarchical manner. However, this approach only works once hotspots are identified in a finite code space that account for a large percentage of the execution time. After which Top-Down analysis can be applied to determine optimizations that alleviate, if present, the limitations from the different parts of the architecture. 
 
-Trident is a coarse grained profiling tool that can quickly identify performance bottlenecks during the runtime of an application by monitoring hardware and software counters. It uses a three pronged approach to simultaneously identify bottlenecks that arise from core, memory or IO subsystem of a given node. The data collection is done in such a way that it causes little to no overhead to the execution of the application. Finally it presents these counters as derived metrics by extending Top-Down analysis and presenting them in a timeline.
+In most High-Energy Physics (HEP) codes though, hotspot profiling has been shown to be ineffective []. The reason being the sparse compute code that has been spread over several thousands of C++ classes due to the complex nature of the physics algorithms and implementation inefficiencies. Therefore its become a key challenge to identify where to focus optimization efforts and to estimate the gain that can be achieved from improving it. In such a scenario the need for a more qualitative profiling tool becomes a necessity in contrast to the classical fine grained profiling approach.
 
+In this paper we propose Trident, a coarse grained profiling tool tailored to the HEP community. It can quickly identify performance bottlenecks during the runtime of an application by monitoring hardware and software counters. These counters are carefully chosen to simultaneously monitor the key performance metrics of core, memory or IO subsystem of a given node. This three pronged approach allows Trident to form a holistic utilization pattern of a given node in a quick and efficient manner. Tuning the interval of the monitoring allows Trident to be used as a node efficiency analysis tool or a more complex application behaviour characterization tool.
 
 \section{Introduction}
 \label{sec:intro}
 
-A key requirement for our Trident tool is the ability to collect hardware and software counters with little to no overhead. At the same time we also wanted to support systems with little to no software configuration changes and without the need for elevated privileges for the hardware counter data collection. Due to this we were limited to only few likely options. The easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem[] of the Linux kernel. After setting up a few simple kernel configuration, it was possible for us to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and architectures. In addition some of the high level counters that we relied do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm [] and configured a dynamic set even counters that we validated and tested on a given architecture.
+The concept of performance counter monitoring is neither new nor novel, however in real world scenarios plenty of difficulties arise in effectively following this approach. First to reliably collect hardware counters is a challenge. This is because all of the approaches need support from both hardware i.e. presence of the counters, and software i.e. OS level drivers and configuration. Furthermore, security implications also limit the different ways that can be used to obtain this data as an unprivileged user. Even if overcoming all this was possible for a specific system, scaling these to work in a generic way across a large number of systems is challenging due to the vast variety of configurations. From all this it became apparent that the online counter data collection system also had to be light weight, secure and intelligent enough to detect the specific counters supported by the architecture. All of this had to be done in a non-obscure way that doesn't sacrifice configurability to support large variety of systems.
+
+Once the ability to effectively collect the counter data was solved, the next challenge was to apply the formulas for several different derived metrics. In addition this offline analysis also had to perform some form data parsing and validation. Also some of the derived metrics depend on the configuration of the node i.e. no of hyper-threaded cores, memory channels, etc., So this information had to be passed on for offline analysis from the monitoring subsystem. 
+
+In the rest of this paper we will describe the Trident design architecture in section~\ref{sec:design}, the extended Top-Down analysis in section[] and some of the results from a test workload in section~\ref{sec:results}.
+
+
+\section{Design}
+\label{sec:design}
+
+Trident is essentially composed of two distinct functional units. One, a lightweight counter aggregation system that runs continuously and two, a complex offline parser to calculate the different derived metrics from the counter data for an extended Top-Down analysis. The counter aggregation system has to be extremely lightweight such that it has negligible overhead on the application being tested. The offline analysis however, is more complex and can take lot longer to perform the necessary calculations for the various derived metrics. 
+
+An overview of the Trident system design is shown in figure\ref{fig:design}.
+
+\begin{figure}
+  \centering
+  \includegraphics[width=0.7\linewidth]{Design.pdf}
+\caption{Trident system design}
+\label{fig:design}
+\end{figure}
+
+\subsection{Online Measurement}
+
+In order to have little to no influence over the execution of the application, it is essential to collect data from the hardware and software counters with little to no overhead. At the same time the approach has to remain flexible and support systems with little to no software configuration changes. Furthermore for production servers this would need to work without the need for elevated privileges for recording data from the hardware counters. Due to this we were limited to only few choices. 
+
+In order to test the functional idea behind Trident and for the design prototype, the easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem[] of the Linux kernel. After setting up a few simple kernel configuration parameters, it was possible to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and processors. In addition some of the high level counters that we need do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm [] and configured a dynamic set even counters that we validated and tested on a given architecture.
+
+\subsection{Offline Analysis}
 
 %\begin{figure}
 %	\centering
@@ -47,8 +75,6 @@ A key requirement for our Trident tool is the ability to collect hardware and so
 %\caption{plots of....}
 %\label{fig:fig}
 %\end{figure}
-
-\section{Design}
 
 \begin{figure}
   \centering
