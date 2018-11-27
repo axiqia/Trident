@@ -41,7 +41,7 @@ The concept of performance counter monitoring is neither new nor novel, however 
 
 Once the ability to effectively collect the counter data was solved, the next challenge was to apply the formulas for several different derived metrics. In addition this offline analysis also had to perform some form data parsing and validation. Also some of the derived metrics depend on the configuration of the node i.e. no of hyper-threaded cores, memory channels, etc., So this information had to be passed on for offline analysis from the monitoring subsystem. 
 
-In the rest of this paper we will describe the Trident design architecture in section~\ref{sec:design}, the extended Top-Down analysis in section[] and some of the results from a test workload in section~\ref{sec:results}.
+The Trident tool demonstrates the ability to do timeline based extended Top-Down analysis and its effectiveness in collecting sparsely spread out interdependent instructions and clusters it together to identify regions of the code that could be targeted for further profiling through classic tools. In the rest of this paper we will describe the Trident design architecture in section~\ref{sec:design}, the extended Top-Down analysis in section[] and some of the results from a test workload in section~\ref{sec:results}.
 
 
 \section{Design}
@@ -62,10 +62,13 @@ An overview of the Trident system design is shown in figure\ref{fig:design}.
 
 In order to have little to no influence over the execution of the application, it is essential to collect data from the hardware and software counters with little to no overhead. At the same time the approach has to remain flexible and support systems with little to no software configuration changes. Furthermore for production servers this would need to work without the need for elevated privileges for recording data from the hardware counters. Due to this we were limited to only few choices. 
 
-In order to test the functional idea behind Trident and for the design prototype, the easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem[] of the Linux kernel. After setting up a few simple kernel configuration parameters, it was possible to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and processors. In addition some of the high level counters that we need do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm [] and configured a dynamic set even counters that we validated and tested on a given architecture.
+In order to test the functional idea behind Trident and for the design prototype, the easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem[] of the Linux kernel. After setting up a few simple kernel configuration parameters, it was possible to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and processors. In addition some of the high level counters that we need do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm [] and configured a dynamic set of event counters that we validated and tested on a given architecture.
 
 \subsection{Offline Analysis}
 
+In the current design of the Trident tool
+
+\section{Experimental Results}
 %\begin{figure}
 %	\centering
 %	\subfloat[fig 1]{\includegraphics[width=0.48\linewidth]{{cmd2.pmpe16.Trident.1.io}.png}}\hfill
