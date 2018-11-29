@@ -718,7 +718,7 @@ MemoryAnalysis()
 	GNUPLOT_STR+=("unset xtics;")
 	GNUPLOT_STR+=("unset ylabel;")
 	#GNUPLOT_STR+=("set label 30 \"Memory Access (Bytes)\" at graph -0.05, graph 0.2 rotate by 90 tc lt 3;")
-	GNUPLOT_STR+=("set ylabel \"Memory Acess (Bytes)\" offset 2,0 tc rgb '#9966FF';")
+	GNUPLOT_STR+=("set ylabel \"Memory Acess (Bytes per sec)\" offset 2,0 tc rgb '#9966FF';")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:];")
 	GNUPLOT_STR+=("set ytics offset 0.7;")
@@ -731,7 +731,7 @@ MemoryAnalysis()
   FindMetricLocation "ME_REBW" "PRM"
   FindMetricLocation "ME_WRBW" "PRM"
   GNUPLOT_STR+=("plot '$PFNAME' \\")
-  GenPlotStrCount "PRM"
+  GenPlotStrRate "PRM"
 	GNUPLOT_STR+=(";")
 	GNUPLOT_STR+=("")
 
@@ -889,7 +889,7 @@ CoreAnalysis()
 	
 	GNUPLOT_STR+=("unset xtics;")
 	GNUPLOT_STR+=("set ylabel \"IPC\" offset 3,0 tc lt 3;")
-	GNUPLOT_STR+=("set y2label \"Unhalted Cycles\" offset -3 tc lt 7;")
+	GNUPLOT_STR+=("set y2label \"Unhalted Cycles Per Sec\" offset -3 tc lt 7;")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:4];")
 	GNUPLOT_STR+=("set ytics add offset 0.7,0.3;")
@@ -905,7 +905,7 @@ CoreAnalysis()
   GNUPLOT_STR+=("")
   unset PRM2;
   FindMetricLocation "CO_CYCL" "PRM2"
-  UTIL_CURVE="u ( \$$(( ${PRM2[ 0 ]} + 1 )) ) t \"${PrintMetricHeader[ ${PRM2[ 0 ]} ]}\" "
+  UTIL_CURVE="u ( \$$(( ${PRM2[ 0 ]} + 1 )) / $BIN ) t \"${PrintMetricHeader[ ${PRM2[ 0 ]} ]}\" "
   UTIL_CURVE+="w boxes fs solid 1 axes x1y2 lc rgb '${PrintMetricColor[ ${PRM2[ 0 ]} ]}', '' \\"
 
 	unset PRM;
