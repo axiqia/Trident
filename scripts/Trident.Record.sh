@@ -89,8 +89,11 @@ Usage()
 #Version
 TRIDENT_VER=Beta-v4
 
-#Simple lock
-lockfile -r 0 /dev/shm/Trident.lock || exit 1
+#Quit, if run as root
+if [[ $EUID -eq 0 ]]; then
+  printf "Trident Error: Running as root is not allowed, exiting...\n"
+  exit 1
+fi
 
 
 ! getopt --test > /dev/null
@@ -165,6 +168,13 @@ if [[ $# -gt 0 ]] || [[ $h == 'y' ]] || \
 		Usage
 fi
 
+
+#Simple lock
+if ! /usr/bin/lockfile -r 0 /dev/shm/Trident.lock &> /dev/null ; then
+	printf "Trident Error: An instance is already running, please check. "
+	printf "If not remove /dev/shm/Trident.lock. \n"
+	exit 1
+fi
 
 printf "Trident started with %.2fs interval for %ds duration >>>>\n" $USER_INTERVAL $DURATION
 
@@ -365,13 +375,13 @@ function ki()
   PROCESS_NAME="$(echo $PROCESS | awk '{printf $11}')"
   PROCESS_PID="$(echo $PROCESS | awk '{print $2}')"
 
-	echo -e "Sending SIGINT to $PROCESS_NAME $PROCESS_PID"
+	#echo -e "Sending $2 to $PROCESS_NAME $PROCESS_PID"
   kill -s $2 $PROCESS_PID
 }
 
 function trap_exit()
 {
-	printf "\nCaught exit request... Flushing fifos... "
+	printf "\nTrident caught exit request... Flushing fifos... "
 	while [ -n "$(p "/usr/bin/sleep")" ];
   do
     ki "sleep" SIGINT

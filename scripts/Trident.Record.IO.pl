@@ -98,6 +98,7 @@ my $linere = '\s+(\d+)\s+(\d+)\s+(.+)'.'\s+(\d+)'x11;
 my $run = 1;
 while($run) {
 	use sigtrap handler => sub { $run = 0 }, 'INT';
+	use sigtrap handler => sub { $run = 0 }, 'TERM';
   %devnext = ();
   open(SF, "< /proc/diskstats");
   while(<SF>) {
