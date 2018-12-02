@@ -49,12 +49,13 @@ The Trident tool demonstrates the ability to do timeline based extended Top-Down
 
 Trident is essentially composed of two distinct functional units. One, a lightweight counter aggregation system that runs continuously and two, a complex offline parser to calculate the different derived metrics from the counter data for an extended Top-Down analysis. The counter aggregation system has to be extremely lightweight such that it has negligible overhead on the application being tested. The offline analysis however, is more complex and can take lot longer to perform the necessary calculations for the various derived metrics. 
 
-An overview of the Trident system design is shown in figure\ref{fig:design}.
+An overview of the Trident system design is shown in figure\ref{fig:design}. The configurator detects the specific processor model and checks if a corresponding event configuration file is present. If it finds it then it generates a parameter list and launches the collector programs. For the version of Trident described in this paper, we currently use two collectors. The first one is based on \textbf{perf} which records the counters that corresponds to the memory and core. The second one is a perl based wrapper that captures IO counters from \textit{ProcFS} []. 
 
 \begin{figure}
   \centering
-  \includegraphics[width=0.7\linewidth]{Design.pdf}
-\caption{Trident system design}
+	\captionsetup{justification=centering}
+  \includegraphics[width=0.5\linewidth]{Design.pdf}
+\caption{Trident system architecture with its different components and inner structure}
 \label{fig:design}
 \end{figure}
 
@@ -62,63 +63,65 @@ An overview of the Trident system design is shown in figure\ref{fig:design}.
 
 In order to have little to no influence over the execution of the application, it is essential to collect data from the hardware and software counters with little to no overhead. At the same time the approach has to remain flexible and support systems with little to no software configuration changes. Furthermore for production servers this would need to work without the need for elevated privileges for recording data from the hardware counters. Due to this we were limited to only few choices. 
 
-In order to test the functional idea behind Trident and for the design prototype, the easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem[] of the Linux kernel. After setting up a few simple kernel configuration parameters, it was possible to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and processors. In addition some of the high level counters that we need do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm [] and configured a dynamic set of event counters that we validated and tested on a given architecture.
+In order to test the functional idea behind Trident and for the design prototype, the easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem[] of the Linux kernel. After setting up a few simple kernel configuration parameters, it was possible to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and processors. In addition some of the high level counters that we need do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm [] and configured a dynamic set of event counters that we validated and tested on a given architecture. The various counters recorded in the current version of Trident is listed in Table\ref{}. In the current prototype to aid in debugging and evaluation we write the data to a CSV file~\cite{}. However, this is only a limitation of the current system and could be easily remedied by using external monitoring systems such as collectd~\cite{}.
 
 \subsection{Offline Analysis}
 
-In the current design of the Trident tool
+In the current design of the Trident tool a single offline plugin parses the input data file, calculates the derived metrics using preconfigured formulas and generates the necessary graphs that represent the data. We use gnuplot~\cite{} as the underlying graph generator. For further analysis the parsed data is also written to a file in CSV format. The table\ref{} lists the various additional derived metrics we calculate from the recorded counter data.
+
+The data is presented in the form of histograms, one for each type of analysis. This information represents the entire activity of the system recorded at periodic intervals. When an application is executed we can identify the exact time the application is started thereby focus on the period of data that corresponds to this.
+
+\begin{figure}
+  \centering
+	\captionsetup{justification=centering}
+  \includegraphics[width=0.7\linewidth]{ExtendedTopDownDiag.pdf}
+\caption{Extended Top-Down Analysis that includes IO and Memory Classification into a single timeline based performance bottleneck identification methodology}
+\label{fig:ext_top_down}
+\end{figure}
+
+In figure~\ref{fig:ext_top_down} we show how the generated graphs can be interpreted by the end user to identify bottlenecks in the application being evaluated. We start with core efficiency classification graph to first determine the amount of active CPU cycles and the corresponding IPC ratio during these periods. This tells how busy the core was and how efficiently it could execute the instructions respectively. Then we can narrow down to interesting regions of the program execution and look at how the execution slots were split among Front-End, Back-End, Bad speculation and Retiring. Front-End corresponds to   
 
 \section{Experimental Results}
 
 To evaluate our Trident tool and to see its usability in real world scenarios we compared the data collected from a know set of benchmarks and an experiment's sample workload. 
 
 
-%\begin{figure}
-%	\centering
-%	\subfloat[fig 1]{\includegraphics[width=0.48\linewidth]{{cmd2.pmpe16.Trident.1.io}.png}}\hfill
-%	\subfloat[fig 2]{\includegraphics[width=0.48\linewidth]{{cmd2.pmpe16.Trident.1.me}.png}}\\
-%	\subfloat[fig 3]{\includegraphics[width=0.48\linewidth]{{cmd2.pmpe16.Trident.1.cb}.png}}\hfill
-%	\subfloat[fig 4]{\includegraphics[width=0.48\linewidth]{{cmd2.pmpe16.Trident.1.co}.png}} 
-%\caption{plots of....}
-%\label{fig:fig}
-%\end{figure}
+\begin{figure}
+  \centering
+	\captionsetup{justification=centering}
+	\subfloat[Core Efficiency Classification]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.co}.png}}\\ 
+	\subfloat[Core Backend Utilization]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.cb}.png}}
+\caption{plots of....}
+\label{fig:fig1}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\captionsetup{justification=centering}
+	\subfloat[Memory Access Classification]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.me}.png}}\\
+	\subfloat[IO Access Classification]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.io}.png}}
+\caption{plots of....}
+\label{fig:fig2}
+\end{figure}
 
 \begin{figure}
   \centering
-  \includegraphics[width=1\linewidth]{ExtendedTopDownDiag.pdf}
+	\captionsetup{justification=centering}
+	\subfloat[Core Efficiency Classification]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.co}.png}}\\
+	\subfloat[Core Backend Utilization]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.cb}.png}}
 \caption{plots of....}
-\label{fig:ext_top_down}
-\end{figure}
-
-\section{Results}
-
-\begin{figure}
-	\centering
-	\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.co}.png}
-\caption{plots of....}
-\label{fig:at_cmd2_co}
+\label{fig:fig3}
 \end{figure}
 
 \begin{figure}
 	\centering
-	\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.cb}.png}
+	\captionsetup{justification=centering}
+	\subfloat[Memory Access Classification]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.me}.png}}\\
+	\subfloat[IO Access Classification]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.io}.png}}
 \caption{plots of....}
-\label{fig:at_cmd2_cb}
+\label{fig:fig4}
 \end{figure}
 
-\begin{figure}
-	\centering
-	\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.me}.png}
-\caption{plots of....}
-\label{fig:at_cmd2_me}
-\end{figure}
-
-\begin{figure}
-	\centering
-	\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.io}.png}
-\caption{plots of....}
-\label{fig:at_cmd2_io}
-\end{figure}
 
 \section{Conclusion}
 
