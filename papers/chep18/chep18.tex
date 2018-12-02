@@ -3,6 +3,7 @@
 
 \usepackage{float}
 \usepackage[caption = false]{subfig}
+\usepackage{textcomp}
 %\usepackage[final]{graphicx}
 
 \begin{document}
@@ -55,7 +56,7 @@ An overview of the Trident system design is shown in figure\ref{fig:design}. The
   \centering
 	\captionsetup{justification=centering}
   \includegraphics[width=0.5\linewidth]{Design.pdf}
-\caption{Trident system architecture with its different components and inner structure}
+\caption{Trident system architecture with its different components and internal design}
 \label{fig:design}
 \end{figure}
 
@@ -79,7 +80,13 @@ The data is presented in the form of histograms, one for each type of analysis. 
 \label{fig:ext_top_down}
 \end{figure}
 
-In figure~\ref{fig:ext_top_down} we show how the generated graphs can be interpreted by the end user to identify bottlenecks in the application being evaluated. We start with core efficiency classification graph to first determine the amount of active CPU cycles and the corresponding IPC ratio during these periods. This tells how busy the core was and how efficiently it could execute the instructions respectively. Then we can narrow down to interesting regions of the program execution and look at how the execution slots were split among Front-End, Back-End, Bad speculation and Retiring. Front-End corresponds to   
+Describing the entire Top-Down Analysis~\cite{6844459} is beyond the scope of this paper. In figure~\ref{fig:ext_top_down} we show how the generated graphs can be interpreted by the end user to identify bottlenecks in the application being evaluated. We start with core efficiency classification graph to first determine the amount of active CPU cycles and the corresponding IPC ratio during these periods. This tells how busy the core was and how efficiently it could execute the instructions respectively. Then we can narrow down to interesting regions of the program execution and look at how the execution slots were split among Front-End, Back-End, Bad speculation and Retiring. Retiring corresponds to the successful completion of instruction execution. Bad speculation is when the \textmu-op was issued but was never retired due to failed to speculative execution. When a \textmu-op was never issued due to a Back-End stall then its Back-End bound else Front-End bound. If we find that the execution slots were predominantly Back-End bound then this could be due to either the particular Back-End resource was busy or there is wait on the memory or the IO subsystem.
+
+We could then look at the core backend utilization graph to see the specific ports that were busy. If those corresponding to arithmetic operations were most busy then its most likely that the numerical capability of the processor is at its limit. In the case of memory operations ports are busy then the application is either bound accessing large data sets or limited by memory related operations. To investigate further we can look at the memory access classification graph.
+
+If the application is indeed accessing large amounts of data we should see high memory bandwidth during these periods of activity. In this case we can look at the transaction analysis to see if the way data being accessed is limiting performance. For ex, if there were many page misses this could indicate poor memory layout. If instead there was mostly page empty activity accompanied with very low bandwidth to the memory then it could mean very sparse and random access to the data. 
+
+Finally, IO access classification graphs shows the activity the of the disks, SSDs, etc., in the system. If at any point during the execution of the application we notice a period of high IO activity coupled with low core efficiency this could indicate the workload was IO bound. IO access classification can be further represented by either the operation or transfer rate. The amount of data read or written per second is represented by the transfer rate analysis and is equivalent to the bandwidth of the disk subsystem. Whereas unique operations are represented by the operation rate analysis and is analogous to latency of the IO subsystem. We also represent the peak utilization of the most utilized disk as an indicator of the stress levels of IO activity.
 
 \section{Experimental Results}
 
