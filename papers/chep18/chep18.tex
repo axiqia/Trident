@@ -17,9 +17,7 @@
 \institute{CERN}
 
 \abstract{%
-Trident, a tool to use low level metrics derived from hardware counters to understand Core, Memory and I/O utilisation and bottlenecks. The collection of time series of these low level counters does not induce significant overhead to the execution of the application.
-
-The Understanding Performance team is investigation on a new node characterization tool, `Trident', that can look at various low level metrics with respect to the Core, Memory and I/O. Trident uses a three pronged approach to analysing node's utilisation and understand the stress on different parts of the node based on the given job. Currently core metrics such as memory bandwidth, core utilization, active processor cycles, etc., are being collected. Interpretation of the data is often non intuitive. The tool converts the data into derived metrics that are then represented as a system wide top-down analysis that helps developers and site managers understand the application behavior without the need for in-depth expertise of architecture details.
+Trident, a qualitative analysis tool that can look at various low level metrics with respect to the Core, Memory and I/O to highlight performance bottlenecks during the execution of an application. Trident uses a three pronged approach in analysing a node's utilisation and to help a non system expert understand the stress on different parts of the system by a given job. Currently metrics such as memory bandwidth, core utilization, active processor cycles, etc., are being collected. Interpretation of the data is often non intuitive in is raw form. Therefore, the tool converts this data into derived metrics that are then represented as a system wide extended Top-Down analysis that helps developers and site managers likewise understand the application behavior without the need for in-depth expertise of architecture details.
 }
 %
 \maketitle
@@ -27,11 +25,11 @@ The Understanding Performance team is investigation on a new node characterizati
 \section{Motivation}
 \label{sec:moti}
 
-Application performance can be characterized by a myriad of tools and techniques. Some of them rely on hardware and software performance counters of a given system to analyze performance bottlenecks. These counters can come from performance monitoring units (PMUs) built into modern processors, memory controllers, etc., or from software counters present in the underlying operating system. The sheer variety of these counters makes it difficult to quickly narrow down to those associated with a particular performance bottleneck. To tackle this, an approach called as Top-Down Analysis~\cite{6844459} was developed based on the counters from Intel processor's PMU. In several cases, it was shown that this technique could be used to reliably identify inefficiencies in different areas of a processor that arise from an application.
+Application performance can be characterized by a myriad of tools and techniques. Some of them rely on hardware and software performance counters of a given system to analyze performance bottlenecks. These counters can come from performance monitoring units (PMUs) built into modern processors, memory controllers, etc., or from software counters present in the underlying operating system. The sheer variety of these counters makes it difficult to quickly narrow down to those associated with a particular performance bottleneck. To tackle this, an approach called as Top-Down analysis~\cite{6844459} was developed based on the counters from Intel processor's PMU. In several cases, it was shown that this technique could be used to reliably identify inefficiencies in different areas of a processor that arise from an application.
 
 The effectiveness of Top-Down analysis lies in the fast diagnosis of performance bottlenecks by investigating the derived metrics in a hierarchical manner. However, this approach only works once hotspots are identified in a finite code space that account for a large percentage of the execution time. After which Top-Down analysis can be applied to determine optimizations that alleviate, if present, the limitations from the different parts of the architecture. 
 
-In most High-Energy Physics (HEP) codes though, hotspot profiling has been shown to be ineffective []. The reason being the sparse compute code that has been spread over several thousands of C++ classes due to the complex nature of the physics algorithms and implementation inefficiencies. Therefore its become a key challenge to identify where to focus optimization efforts and to estimate the gain that can be achieved from improving it. In such a scenario the need for a more qualitative profiling tool becomes a necessity in contrast to the classical fine grained profiling approach.
+In most High-Energy Physics (HEP) codes though, hotspot profiling has been shown to be ineffective~\cite{}. The reason being the sparse compute code that has been spread over several thousands of C++ classes due to the complex nature of the physics algorithms and implementation inefficiencies. Therefore its become a key challenge to identify where to focus optimization efforts and to estimate the gain that can be achieved from improving it. In such a scenario the need for a more qualitative profiling tool becomes a necessity in contrast to the classical fine grained profiling approach.
 
 In this paper we propose Trident, a coarse grained profiling tool tailored to the HEP community. It can quickly identify performance bottlenecks during the runtime of an application by monitoring hardware and software counters. These counters are carefully chosen to simultaneously monitor the key performance metrics of core, memory or IO subsystem of a given node. This three pronged approach allows Trident to form a holistic utilization pattern of a given node in a quick and efficient manner. Tuning the interval of the monitoring allows Trident to be used as a node efficiency analysis tool or a more complex application behaviour characterization tool.
 
@@ -42,7 +40,7 @@ The concept of performance counter monitoring is neither new nor novel, however 
 
 Once the ability to effectively collect the counter data was solved, the next challenge was to apply the formulas for several different derived metrics. In addition this offline analysis also had to perform some form data parsing and validation. Also some of the derived metrics depend on the configuration of the node i.e. no of hyper-threaded cores, memory channels, etc., So this information had to be passed on for offline analysis from the monitoring subsystem. 
 
-The Trident tool demonstrates the ability to do timeline based extended Top-Down analysis and its effectiveness in collecting sparsely spread out interdependent instructions and clusters it together to identify regions of the code that could be targeted for further profiling through classic tools. In the rest of this paper we will describe the Trident design architecture in section~\ref{sec:design}, the extended Top-Down analysis in section[] and some of the results from a test workload in section~\ref{sec:results}.
+The Trident tool demonstrates the ability to do timeline based extended Top-Down analysis and its effectiveness in collecting sparsely spread out interdependent instructions and clusters it together to identify regions of the code that could be targeted for further profiling through classic tools. In the rest of this paper we will describe the Trident design architecture in section~\ref{sec:design}, the extended Top-Down analysis and results from a benchmark and an example HEP experiment workload in section~\ref{sec:results}.
 
 
 \section{Design}
@@ -50,12 +48,13 @@ The Trident tool demonstrates the ability to do timeline based extended Top-Down
 
 Trident is essentially composed of two distinct functional units. One, a lightweight counter aggregation system that runs continuously and two, a complex offline parser to calculate the different derived metrics from the counter data for an extended Top-Down analysis. The counter aggregation system has to be extremely lightweight such that it has negligible overhead on the application being tested. The offline analysis however, is more complex and can take lot longer to perform the necessary calculations for the various derived metrics. 
 
-An overview of the Trident system design is shown in figure\ref{fig:design}. The configurator detects the specific processor model and checks if a corresponding event configuration file is present. If it finds it then it generates a parameter list and launches the collector programs. For the version of Trident described in this paper, we currently use two collectors. The first one is based on \textbf{perf} which records the counters that corresponds to the memory and core. The second one is a perl based wrapper that captures IO counters from \textit{ProcFS} []. 
+An overview of the Trident system design is shown in figure~\ref{fig:design}. The configurator detects the specific processor model and checks if a corresponding event configuration file is present. If it finds it then it generates a parameter list and launches the collector programs. For the version of Trident described in this paper, we currently use two collectors. The first one is based on \textbf{perf} which records the counters that corresponds to the memory and core. The second one is a perl based wrapper that captures IO counters from \textit{ProcFS}~\cite{}. 
 
 \begin{figure}
   \centering
 	\captionsetup{justification=centering}
   \includegraphics[width=0.5\linewidth]{Design.pdf}
+	\setlength{\belowcaptionskip}{-10pt}
 \caption{Trident system architecture with its different components and internal design}
 \label{fig:design}
 \end{figure}
@@ -64,11 +63,12 @@ An overview of the Trident system design is shown in figure\ref{fig:design}. The
 
 In order to have little to no influence over the execution of the application, it is essential to collect data from the hardware and software counters with little to no overhead. At the same time the approach has to remain flexible and support systems with little to no software configuration changes. Furthermore for production servers this would need to work without the need for elevated privileges for recording data from the hardware counters. Due to this we were limited to only few choices. 
 
-In order to test the functional idea behind Trident and for the design prototype, the easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem[] of the Linux kernel. After setting up a few simple kernel configuration parameters, it was possible to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and processors. In addition some of the high level counters that we need do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm [] and configured a dynamic set of event counters that we validated and tested on a given architecture. The various counters recorded in the current version of Trident is listed in Table\ref{}. In the current prototype to aid in debugging and evaluation we write the data to a CSV file~\cite{}. However, this is only a limitation of the current system and could be easily remedied by using external monitoring systems such as collectd~\cite{}.
+In order to test the functional idea behind Trident and for the design prototype, the easiest and simplest way to record hardware counters appeared to be piggy backing on the \textbf{perf} subsystem~\cite{} of the Linux kernel. After setting up a few simple kernel configuration parameters, it was possible to record counter data from userspace. While \textbf{perf} supports high level counter names, we found this to drastically vary between kernel versions and processors. In addition some of the high level counters that we need do not appear to be directly supported. So therefore we developed a simple architecture identification mechanism using libpfm~\cite{} and configured a dynamic set of event counters that we validated and tested on a given architecture. The various counters recorded in the current version of Trident is listed in the repository~\cite{}. In the current prototype to aid in debugging and evaluation we write the data to a CSV file~\cite{}. However, this is only a limitation of the current system and could be easily remedied by using external monitoring systems such as collectd~\cite{}.
 
 \subsection{Offline Analysis}
+\label{subsec:analysis}
 
-In the current design of the Trident tool a single offline plugin parses the input data file, calculates the derived metrics using preconfigured formulas and generates the necessary graphs that represent the data. We use gnuplot~\cite{} as the underlying graph generator. For further analysis the parsed data is also written to a file in CSV format. The table\ref{} lists the various additional derived metrics we calculate from the recorded counter data.
+In the current design of the Trident tool a single offline plugin parses the input data file, calculates the derived metrics using preconfigured formulas and generates the necessary graphs that represent the data. We use gnuplot~\cite{} as the underlying graph generator. For further analysis the parsed data is also written to a file in CSV format. Trident repository~\cite{} lists the various derived metrics we calculate from the recorded counter data.
 
 The data is presented in the form of histograms, one for each type of analysis. This information represents the entire activity of the system recorded at periodic intervals. When an application is executed we can identify the exact time the application is started thereby focus on the period of data that corresponds to this.
 
@@ -76,11 +76,52 @@ The data is presented in the form of histograms, one for each type of analysis. 
   \centering
 	\captionsetup{justification=centering}
   \includegraphics[width=0.7\linewidth]{ExtendedTopDownDiag.pdf}
-\caption{Extended Top-Down Analysis that includes IO and Memory Classification into a single timeline based performance bottleneck identification methodology}
+	\setlength{\belowcaptionskip}{-10pt}
+\caption{Extended Top-Down analysis that includes IO and Memory Classification into a single timeline based performance bottleneck identification methodology}
 \label{fig:ext_top_down}
 \end{figure}
 
-Describing the entire Top-Down Analysis~\cite{6844459} is beyond the scope of this paper. In figure~\ref{fig:ext_top_down} we show how the generated graphs can be interpreted by the end user to identify bottlenecks in the application being evaluated. We start with core efficiency classification graph to first determine the amount of active CPU cycles and the corresponding IPC ratio during these periods. This tells how busy the core was and how efficiently it could execute the instructions respectively. Then we can narrow down to interesting regions of the program execution and look at how the execution slots were split among Front-End, Back-End, Bad speculation and Retiring. Retiring corresponds to the successful completion of instruction execution. Bad speculation is when the \textmu-op was issued but was never retired due to failed to speculative execution. When a \textmu-op was never issued due to a Back-End stall then its Back-End bound else Front-End bound. If we find that the execution slots were predominantly Back-End bound then this could be due to either the particular Back-End resource was busy or there is wait on the memory or the IO subsystem.
+\begin{figure}
+  \centering
+	\captionsetup{justification=centering}
+	\subfloat[Core Efficiency Classification]{\includegraphics[width=0.8\linewidth]{{h06.pmpe16.Trident.1.co}.png}}\\ 
+	\subfloat[Core Backend Utilization]{\includegraphics[width=0.8\linewidth]{{h06.pmpe16.Trident.1.cb}.png}}
+	\setlength{\belowcaptionskip}{-10pt}
+\caption{Core analysis histograms of HEPSPEC06 benchmarks. Each of the benchmark is repeated five times.}
+\label{fig:h06-co}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\captionsetup{justification=centering}
+	\subfloat[Memory Access Classification]{\includegraphics[width=0.8\linewidth]{{h06.pmpe16.Trident.1.me}.png}}\\
+	\subfloat[IO Access Classification]{\includegraphics[width=0.8\linewidth]{{h06.pmpe16.Trident.1.io}.png}}
+	\setlength{\belowcaptionskip}{-10pt}
+\caption{Memory and IO Access classification histograms of HEPSPEC06 benchmarks. Each of the benchmark is repeated five times.}
+\label{fig:h06-me-io}
+\end{figure}
+
+\begin{figure}
+  \centering
+	\captionsetup{justification=centering}
+	\subfloat[Core Efficiency Classification]{\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.co}.png}}\\
+	\subfloat[Core Backend Utilization]{\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.cb}.png}}
+	\setlength{\belowcaptionskip}{-10pt}
+\caption{Core analysis histograms of an example derivation and reconstruction workload.}
+\label{fig:wo-co}
+\end{figure}
+
+\begin{figure}
+	\centering
+	\captionsetup{justification=centering}
+	\subfloat[Memory Access Classification]{\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.me}.png}}\\
+	\subfloat[IO Access Classification]{\includegraphics[width=0.8\linewidth]{{cmd2.pmpe16.Trident.1.io}.png}}
+	\setlength{\belowcaptionskip}{-10pt}
+\caption{Memory and IO Access classification histograms of an example derivation and reconstruction workload.}
+\label{fig:wo-me-io}
+\end{figure}
+
+Describing the entire Top-Down analysis~\cite{6844459} is beyond the scope of this paper. In figure~\ref{fig:ext_top_down} we show how the generated graphs can be interpreted by the end user to identify bottlenecks in the application being evaluated. We start with core efficiency classification graph to first determine the amount of active CPU cycles and the corresponding IPC ratio during these periods. This tells how busy the core was and how efficiently it could execute the instructions respectively. Then we can narrow down to interesting regions of the program execution and look at how the execution slots were split among Front-End, Back-End, Bad speculation and Retiring. Retiring corresponds to the successful completion of instruction execution. Bad speculation is when the \textmu-op was issued but was never retired due to failed to speculative execution. When a \textmu-op was never issued due to a Back-End stall then its Back-End bound else Front-End bound. If we find that the execution slots were predominantly Back-End bound then this could be due to either the particular Back-End resource was busy or there is wait on the memory or the IO subsystem.
 
 We could then look at the core backend utilization graph to see the specific ports that were busy. If those corresponding to arithmetic operations were most busy then its most likely that the numerical capability of the processor is at its limit. In the case of memory operations ports are busy then the application is either bound accessing large data sets or limited by memory related operations. To investigate further we can look at the memory access classification graph.
 
@@ -89,65 +130,21 @@ If the application is indeed accessing large amounts of data we should see high 
 Finally, IO access classification graphs shows the activity the of the disks, SSDs, etc., in the system. If at any point during the execution of the application we notice a period of high IO activity coupled with low core efficiency this could indicate the workload was IO bound. IO access classification can be further represented by either the operation or transfer rate. The amount of data read or written per second is represented by the transfer rate analysis and is equivalent to the bandwidth of the disk subsystem. Whereas unique operations are represented by the operation rate analysis and is analogous to latency of the IO subsystem. We also represent the peak utilization of the most utilized disk as an indicator of the stress levels of IO activity.
 
 \section{Experimental Results}
+\label{sec:results}
 
-To evaluate our Trident tool and to see its usability in real world scenarios we compared the data collected from a know set of benchmarks and an experiment's sample workload. 
+To evaluate our Trident tool and to see its usability in real world scenarios we compared the data collected from a know set of benchmarks and an experiment's sample workload. The benchmarks are repeated five times to showcase the ability of the tool to capture and represent data consistently. The sample HEP workload consists of a derivation and reconstruction of a set of events of one of the experiments.
 
+The HEPSPEC06~\cite{} based on SPEC2006 consists of six individual benchmarks that is used to evaluate and compare compute systems. In figure~\ref{fig:h06-co} we show the core analysis of the various benchmarks and its iterations. It can be clearly see each benchmarks stresses different parts of the system as expected. We can see that one of the benchmark is able to achieve 3 IPC and the corresponding core backend utilization shows the heaviest use of the ports. Most of the benchmarks are also stressing the arithmetic ports indicated by the shades of green in the core backend utilization graph.
 
-\begin{figure}
-  \centering
-	\captionsetup{justification=centering}
-	\subfloat[Core Efficiency Classification]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.co}.png}}\\ 
-	\subfloat[Core Backend Utilization]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.cb}.png}}
-\caption{plots of....}
-\label{fig:fig1}
-\end{figure}
+In figure~\ref{fig:h06-me-io} we see some of the benchmarks heavily stressing the memory subsystem and in some cases achieves the limit the system is capable of. We can also see that transaction analysis gives a different insight into the way memory is accessed. The IO access classification graphs show very little activity which is representative of benchmarks workloads which are designed around compute kernels and do not depend on large data sets.
 
-\begin{figure}
-	\centering
-	\captionsetup{justification=centering}
-	\subfloat[Memory Access Classification]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.me}.png}}\\
-	\subfloat[IO Access Classification]{\includegraphics[width=1\linewidth]{{h06.pmpe16.Trident.1.io}.png}}
-\caption{plots of....}
-\label{fig:fig2}
-\end{figure}
-
-\begin{figure}
-  \centering
-	\captionsetup{justification=centering}
-	\subfloat[Core Efficiency Classification]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.co}.png}}\\
-	\subfloat[Core Backend Utilization]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.cb}.png}}
-\caption{plots of....}
-\label{fig:fig3}
-\end{figure}
-
-\begin{figure}
-	\centering
-	\captionsetup{justification=centering}
-	\subfloat[Memory Access Classification]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.me}.png}}\\
-	\subfloat[IO Access Classification]{\includegraphics[width=1\linewidth]{{cmd2.pmpe16.Trident.1.io}.png}}
-\caption{plots of....}
-\label{fig:fig4}
-\end{figure}
+Similarly in figure~\ref{fig:wo-co} \&~\ref{fig:wo-me-io} we present the information collected during the example workload runs. In contrary to synthetic benchmarks we see a much lower IPC coupled with significant front-end and bad speculation. We can also see four stages in the application execution. While we see heavy usage of the memory operation ports in comparison to the synthetic benchmarks much less access to main memory. Coupled with the information from the transaction analysis we could interpret that there is very sporadic and random access to data. It can also be seen that while there is some IO activity in bursts this by no means is limiting the performance of the workload.
 
 
 \section{Conclusion}
 
-%For tables use syntax in table~\ref{tab-1}.
-%\begin{table}
-%\centering
-%\caption{Please write your table caption here}
-%\label{tab-1}       % Give a unique label
-%% For LaTeX tables you can use
-%\begin{tabular}{lll}
-%\hline
-%first & second & third  \\\hline
-%number & number & number \\
-%number & number & number \\\hline
-%\end{tabular}
-%% Or use
-%\vspace*{5cm}  % with the correct table height
-%\end{table}
-%
+The concept of Top-Down analysis has been demonstrated previously and has been shown to be effective to identify performance bottlenecks from hardware counter data. Trident has shown that this analysis can also be used in a qualitative form where instead of directly profiling the code we could instead evaluate the functional parts of an application during its execution. In HEP code base with its vast spread of C++ functions, Trident can provide an alternative approach in identifying hotspots to target for improvement by combining relevant functional blocks that are impacted by a particular aspect of the system. The preliminary results presented in this paper shows that this methodology can be quite effective in evaluating workloads in comparison to known benchmarks.
+
 \bibliography{chep18}
 
 \end{document}
