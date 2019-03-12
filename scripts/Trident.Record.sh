@@ -169,15 +169,6 @@ if [[ $# -gt 0 ]] || [[ $h == 'y' ]] || \
 fi
 
 
-#Simple lock
-if ! /usr/bin/lockfile -r 0 /dev/shm/Trident.lock &> /dev/null ; then
-	printf "Trident Error: An instance is already running, please check. "
-	printf "If not remove /dev/shm/Trident.lock. \n"
-	exit 1
-fi
-
-printf "Trident started with %.2fs interval for %ds duration >>>>\n" $USER_INTERVAL $DURATION
-
 #----------------------EOF User Parameters--------------------------
 
 # Set internal interval variable
@@ -287,6 +278,25 @@ TRIDENT_SUPPORT=$BASE_DIR/bin/trident_support
 # Event counter metrics directory
 EVT_CNT_DIR=$BASE_DIR/EventCounters
 
+#Supported event list detection
+EVNT_LIST=$($TRIDENT_SUPPORT $EVT_CNT_DIR 2>&1 | $GREP "architecture is detected" | $AWK -F '[<>]' '{print $2}')
+if [[ ! $EVNT_LIST == *.evts ]]; then
+{
+	$ECHO "No supported architectures found in the current system!!!"
+	exit -1
+}
+fi
+source $EVT_CNT_DIR/$EVNT_LIST
+
+#Simple lock
+if ! /usr/bin/lockfile -r 0 /dev/shm/Trident.lock &> /dev/null ; then
+	printf "Trident Error: An instance is already running, please check. "
+	printf "If not remove /dev/shm/Trident.lock. \n"
+	exit 1
+fi
+
+printf "Trident started with %.2fs interval for %ds duration >>>>\n" $USER_INTERVAL $DURATION
+
 ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ"`
 ST_UTSTM=$($DATE --date "$ST_TSTMP" +%s)
 
@@ -305,15 +315,6 @@ $MKFIFO -m 600 $P1
 $MKFIFO -m 600 $P2
 $MKFIFO -m 600 $P3
 
-#Supported event list detection
-EVNT_LIST=$($TRIDENT_SUPPORT $EVT_CNT_DIR 2>&1 | $GREP "architecture is detected" | $AWK -F '[<>]' '{print $2}')
-if [[ ! $EVNT_LIST == *.evts ]]; then
-{
-	$ECHO "No supported architectures found in the current system!!!"
-	exit -1
-}
-fi
-source $EVT_CNT_DIR/$EVNT_LIST
 
 ARCH=$($ECHO $EVNT_LIST | $AWK -F . '{print $1}')
 
@@ -376,7 +377,7 @@ function ki()
   PROCESS_PID="$(echo $PROCESS | awk '{print $2}')"
 
 	#echo -e "Sending $2 to $PROCESS_NAME $PROCESS_PID"
-  kill -s $2 $PROCESS_PID
+  kill -s $2 $PROCESS_PID 2>/dev/null
 }
 
 function trap_exit()
@@ -395,17 +396,17 @@ function trap_exit()
 	exec 5<>$P1
 	cat <&5 >/dev/null & cat_pid=$!
 	sleep 0.1
-	kill "$cat_pid"
+	kill "$cat_pid" 2>/dev/null
 
 	exec 6<>$P2
   cat <&6 >/dev/null & cat_pid2=$!
   sleep 0.1
-  kill "$cat_pid2"
+  kill "$cat_pid2" 2>/dev/null
 
 	exec 7<>$P3
   cat <&7 >/dev/null & cat_pid3=$!
   sleep 0.1
-  kill "$cat_pid3"
+  kill "$cat_pid3" 2>/dev/null
 
 	printf "Terminated gracefully...\n"
 	$RM -f /dev/shm/Trident.lock
