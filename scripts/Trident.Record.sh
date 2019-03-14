@@ -465,7 +465,7 @@ $RM $P3
 
 $ECHO "" >> $OUTFILE
 $ECHO "Trident profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $OUTFILE
-printf "\e[96mTrident resource usage by module, %s, %s\e[0m\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")" >> $OUTFILE
+printf "Trident resource usage by module, %s, %s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")" >> $OUTFILE
 printf "\e[96m<<<< Trident resource usage by module,\n\t%s,\n\t%s\e[0m\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")"
 
 $RM $TOUT $T2OUT
