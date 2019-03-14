@@ -81,8 +81,9 @@ Usage()
   printf "\t-h, --help \t\t Print usage \n";
   printf "\t-i, --interval=VALUE \t Sampling interval in seconds, 60 > VALUE >= 0.1 \n";
   printf "\t-d, --duration=VALUE \t Run interval in seconds, VALUE >= 1 \n";
+  printf "\t-t, --timezone=VALUE \t Defaults to UTC for timestamps if not specified \n";
   printf "\nCtrl+c to exit script and finalize data before end of duration \n";
-  printf "\nReport bugs to smuralid@cern.ch.\n"
+  printf "Report bugs to smuralid@cern.ch.\n"
   exit 4
 }
 
@@ -91,18 +92,18 @@ TRIDENT_VER=Beta-v4
 
 #Quit, if run as root
 if [[ $EUID -eq 0 ]]; then
-  printf "Trident Error: Running as root is not allowed, exiting...\n"
+  printf "\e[91mTrident Error: Running as root is not allowed, exiting...\e[0m\n"
   exit 1
 fi
 
 
 ! getopt --test > /dev/null
 if [[ ${PIPESTATUS[0]} -ne 4 ]]; then
-    printf "Trident Error: Unsupported environment, `getopt --test` failed. Please rectify.\n"
+    printf "\e[91mTrident Error: Unsupported environment, `getopt --test` failed. Please rectify.\e[0m\n"
     exit 1
 fi
 
-OPTIONS=i:d:vh
+OPTIONS=i:d:t:vh
 LONGOPTS=interval:duration:,verbose,help
 
 # -use ! and PIPESTATUS to get exit code with errexit set
@@ -131,6 +132,9 @@ USER_INTERVAL=1
 # Duration the script has to run in seconds
 DURATION=30000
 
+#Timezone
+TIMEZONE=UTC
+
 # now enjoy the options in order and nicely split until we see --
 while true; do
     case "$1" in
@@ -140,6 +144,10 @@ while true; do
             ;;
         -d|--duration)
             DURATION=$2
+            shift 2
+            ;;
+        -t|--timezone)
+            TIMEZONE=$2
             shift 2
             ;;
 				-v|--verbose)
@@ -155,7 +163,7 @@ while true; do
             break
             ;;
         *)
-            printf "Trident Error: Unknown option <<<$1>>> \n"
+            printf "\e[91mTrident Error: Unknown option <<<$1>>> \e[0m\n"
             exit 3
             ;;
     esac
@@ -183,31 +191,31 @@ PERF_S=$( cat /proc/sys/kernel/perf_event_paranoid )
 
 if (( NMI_S != 0 ));	
 then 
-		printf "Trident Error: Kindly ensure "
-		printf "/proc/sys/kernel/nmi_watchdog is set to 0\n"; 
+		printf "\e[91mTrident Error: Kindly ensure \e[0m"
+		printf "\e[91m/proc/sys/kernel/nmi_watchdog is set to 0\e[0m\n"; 
 		exit 1; 
 fi
 
 if (( PERF_S != -1 ));	
 then 
-		printf "Trident Error: Kindly ensure "
-		printf "/proc/sys/kernel/perf_event_paranoid is set to -1\n"; 
+		printf "\e[91mTrident Error: Kindly ensure \e[0m"
+		printf "\e[91m/proc/sys/kernel/perf_event_paranoid is set to -1\e[0m\n"; 
 		exit 1; 
 fi
 
 if (( $( echo "$INTERVAL < 100" | bc -l ) || \
 		$( echo "$INTERVAL > 60000" | bc -l ) )); 
 then 
-		printf "Trident Error: Interval resolution affects performance, "
-		printf "counter granularity not within spec of 0.1->60s\n"; 
+		printf "\e[91mTrident Error: Interval resolution affects performance, \e[0m"
+		printf "\e[91mcounter granularity not within spec of 0.1->60s\e[0m\n"; 
 		exit 1; 
 fi
 
 if (( $( echo "$DURATION < 0" | bc -l ) || \
 		$( echo "$DURATION < $INTERVAL / 1000" | bc -l ) )); 
 then 
-		printf "Trident Error: Profiling duration "
-		printf "is too short for specified intervals\n"; 
+		printf "\e[91mTrident Error: Profiling duration \e[0m"
+		printf "\e[91mis too short for specified intervals\e[0m\n"; 
 		exit 1; 
 fi
 
@@ -221,27 +229,27 @@ BASE_DIR="$(cd $SCRIPT_DIR/../ && pwd)"
 # Change path to switch between local and system defaults
 
 # Autodetect system defaults
-DATE=$(command -v date) || { echo >&2 "Trident Error: 'date' is not installed."; exit 1; }
-HOSTNAME=$(command -v hostname) || { echo >&2 "Trident Error: 'hostname' is not installed."; exit 1; }
-MKFIFO=$(command -v mkfifo) || { echo >&2 "Trident Error: 'mkfifo' is not installed."; exit 1; }
-MKTEMP=$(command -v mktemp) || { echo >&2 "Trident Error: 'mktemp' is not installed."; exit 1; }
-CAT=$(command -v cat) || { echo >&2 "Trident Error: 'cat' is not installed."; exit 1; }
-ECHO=$(command -v echo ) || { echo >&2 "Trident Error: 'echo' is not installed."; exit 1; }
-GREP=$(command -v grep ) || { echo >&2 "Trident Error: 'grep' is not installed."; exit 1; }
-SORT=$(command -v sort ) || { echo >&2 "Trident Error: 'sort' is not installed."; exit 1; }
-WC=$(command -v wc ) || { echo >&2 "Trident Error: 'wc' is not installed."; exit 1; }
-AWK=$(command -v awk ) || { echo >&2 "Trident Error: 'awk' is not installed."; exit 1; }
-SED=$(command -v sed ) || { echo >&2 "Trident Error: 'sed' is not installed."; exit 1; }
-RM=$(command -v rm ) || { echo >&2 "Trident Error: 'rm' is not installed."; exit 1; }
-TS=$(command -v ts ) || { echo >&2 "Trident Error: 'ts' is not installed."; exit 1; }
-SLEEP=$(command -v sleep ) || { echo >&2 "Trident Error: 'sleep' is not installed."; exit 1; }
-PWD=$(command -v pwd ) || { echo >&2 "Trident Error: 'pwd' is not installed."; exit 1; }
-READ=$(command -v read ) || { echo >&2 "Trident Error: 'read' is not installed."; exit 1; }
-TR=$(command -v tr ) || { echo >&2 "Trident Error: 'tr' is not installed."; exit 1; }
-LSCPU=$(command -v lscpu ) || { echo >&2 "Trident Error: 'lscpu' is not installed."; exit 1; }
-TIME=$(command -v /usr/bin/time ) || { echo >&2 "Trident Error: '/usr/bin/time' is not installed."; exit 1; }
-PERF=$(command -v $BASE_DIR/bin/perf_static ) || { echo >&2 "Trident Error: '$BASE_DIR/bin/perf_static' not found."; exit 1; }
-IO=$(command -v $BASE_DIR/scripts/Trident.Record.IO.pl ) || { echo >&2 "Trident Error: '$BASE_DIR/scripts/Trident.Record.IO.pl' not found."; exit 1; }
+DATE=$(command -v date) || { echo -e >&2 "\e[91mTrident Error: 'date' is not installed.\e[0m"; exit 1; }
+HOSTNAME=$(command -v hostname) || { echo -e >&2 "\e[91mTrident Error: 'hostname' is not installed.\e[0m"; exit 1; }
+MKFIFO=$(command -v mkfifo) || { echo -e >&2 "\e[91mTrident Error: 'mkfifo' is not installed.\e[0m"; exit 1; }
+MKTEMP=$(command -v mktemp) || { echo -e >&2 "\e[91mTrident Error: 'mktemp' is not installed.\e[0m"; exit 1; }
+CAT=$(command -v cat) || { echo -e >&2 "\e[91mTrident Error: 'cat' is not installed.\e[0m"; exit 1; }
+ECHO=$(command -v echo -e ) || { echo -e >&2 "\e[91mTrident Error: 'echo -e' is not installed.\e[0m"; exit 1; }
+GREP=$(command -v grep ) || { echo -e >&2 "\e[91mTrident Error: 'grep' is not installed.\e[0m"; exit 1; }
+SORT=$(command -v sort ) || { echo -e >&2 "\e[91mTrident Error: 'sort' is not installed.\e[0m"; exit 1; }
+WC=$(command -v wc ) || { echo -e >&2 "\e[91mTrident Error: 'wc' is not installed.\e[0m"; exit 1; }
+AWK=$(command -v awk ) || { echo -e >&2 "\e[91mTrident Error: 'awk' is not installed.\e[0m"; exit 1; }
+SED=$(command -v sed ) || { echo -e >&2 "\e[91mTrident Error: 'sed' is not installed.\e[0m"; exit 1; }
+RM=$(command -v rm ) || { echo -e >&2 "\e[91mTrident Error: 'rm' is not installed.\e[0m"; exit 1; }
+TS=$(command -v ts ) || { echo -e >&2 "\e[91mTrident Error: 'ts' is not installed.\e[0m"; exit 1; }
+SLEEP=$(command -v sleep ) || { echo -e >&2 "\e[91mTrident Error: 'sleep' is not installed.\e[0m"; exit 1; }
+PWD=$(command -v pwd ) || { echo -e >&2 "\e[91mTrident Error: 'pwd' is not installed.\e[0m"; exit 1; }
+READ=$(command -v read ) || { echo -e >&2 "\e[91mTrident Error: 'read' is not installed.\e[0m"; exit 1; }
+TR=$(command -v tr ) || { echo -e >&2 "\e[91mTrident Error: 'tr' is not installed.\e[0m"; exit 1; }
+LSCPU=$(command -v lscpu ) || { echo -e >&2 "\e[91mTrident Error: 'lscpu' is not installed.\e[0m"; exit 1; }
+TIME=$(command -v /usr/bin/time ) || { echo -e >&2 "\e[91mTrident Error: '/usr/bin/time' is not installed.\e[0m"; exit 1; }
+PERF=$(command -v $BASE_DIR/bin/perf_static ) || { echo -e >&2 "\e[91mTrident Error: '$BASE_DIR/bin/perf_static' not found.\e[0m"; exit 1; }
+IO=$(command -v $BASE_DIR/scripts/Trident.Record.IO.pl ) || { echo -e >&2 "\e[91mTrident Error: '$BASE_DIR/scripts/Trident.Record.IO.pl' not found.\e[0m"; exit 1; }
 
 # Explicit path
 # DATE=/usr/bin/date
@@ -290,15 +298,15 @@ source $EVT_CNT_DIR/$EVNT_LIST
 
 #Simple lock
 if ! /usr/bin/lockfile -r 0 /dev/shm/Trident.lock &> /dev/null ; then
-	printf "Trident Error: An instance is already running, please check. "
-	printf "If not remove /dev/shm/Trident.lock. \n"
+	printf "\e[91mTrident Error: An instance is already running, please check. \e[0m"
+	printf "\e[91mIf not remove /dev/shm/Trident.lock. \e[0m\n"
 	exit 1
 fi
 
-printf "Trident started with %.2fs interval for %ds duration >>>>\n" $USER_INTERVAL $DURATION
+printf "\e[96mTrident started with %.2fs interval for %ds duration >>>>\e[0m\n" $USER_INTERVAL $DURATION
 
-ST_TSTMP=`$DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ"`
-ST_UTSTM=$($DATE --date "$ST_TSTMP" +%s)
+ST_TSTMP=`TZ=$TIMEZONE $DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ"`
+ST_UTSTM=$(TZ=$TIMEZONE $DATE --date "$ST_TSTMP" +%s)
 
 # Prepend the node name to this string.
 OUTFILE="$HSTNAME.Trident.$ST_UTSTM.log"
@@ -382,7 +390,7 @@ function ki()
 
 function trap_exit()
 {
-	printf "\nTrident caught exit request... Flushing fifos... "
+	printf "\e[33m\nTrident caught exit request... Flushing fifos... \e[0m"
 	while [ -n "$(p "/usr/bin/sleep")" ];
   do
     ki "sleep" SIGINT
@@ -408,7 +416,7 @@ function trap_exit()
   sleep 0.1
   kill "$cat_pid3" 2>/dev/null
 
-	printf "Terminated gracefully...\n"
+	printf "\e[33mTerminated gracefully...\e[0m\n"
 	$RM -f /dev/shm/Trident.lock
 }
 
@@ -428,7 +436,7 @@ fi
 $TIME -o $T2OUT -f "IO [cpu=%P,real=%es,user=%Us,sys=%Ss]" $IO $( echo "$INTERVAL / 1000" | bc -l | awk '{printf "%.2f", $0}' ) $DURATION >> $P2 &
 
 #String formatting and timestamping
-$CAT $P1 | TZ=UTC $TS "%Y-%m-%dT%H:%M:%.SZ;%.s;" | stdbuf -oL $AWK -v AVSOCKP="$SOCKP" -F ";" 'NF>5 { printf $1";"$2";"$AVSOCKP"\n" }' | stdbuf -oL $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s; %s;",$1,$2 }; printf "%9.3G;",$3; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
+$CAT $P1 | TZ=$TIMEZONE $TS "%Y-%m-%dT%H:%M:%.SZ;%.s;" | stdbuf -oL $AWK -v AVSOCKP="$SOCKP" -F ";" 'NF>5 { printf $1";"$2";"$AVSOCKP"\n" }' | stdbuf -oL $AWK -vTS_VAL=$(($NO_PARM)) -F ";" '{ if( NR%TS_VAL == 1 ){ printf "%s; %s;",$1,$2 }; printf "%9.3G;",$3; if( NR%TS_VAL == 0 ){ printf "\n" }; }' >> $P3 &
 
 (
 exec 30< <( $CAT $P3 )
@@ -445,7 +453,7 @@ $SED -i '$ d' $OUTFILE
 
 wait
 
-EN_TSTMP=$($DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ");
+EN_TSTMP=$(TZ=$TIMEZONE $DATE -u +"%Y-%m-%dT%H:%M:%S.%6NZ");
 ST=$(date --date "$ST_TSTMP" +%s.%N);
 EN=$(date --date "$EN_TSTMP" +%s.%N);
 DUR=$( echo "$EN - $ST" | bc )
@@ -457,8 +465,8 @@ $RM $P3
 
 $ECHO "" >> $OUTFILE
 $ECHO "Trident profiled for $ST_TSTMP -> $EN_TSTMP , $DUR s" >> $OUTFILE
-printf "Trident resource usage by module, %s, %s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")" >> $OUTFILE
-printf "<<<< Trident resource usage by module,\n\t%s,\n\t%s\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")"
+printf "\e[96mTrident resource usage by module, %s, %s\e[0m\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")" >> $OUTFILE
+printf "\e[96m<<<< Trident resource usage by module,\n\t%s,\n\t%s\e[0m\n" "$($CAT $TOUT | $TR -d "\n")" "$($CAT $T2OUT | $TR -d "\n")"
 
 $RM $TOUT $T2OUT
 $RM -f /dev/shm/Trident.lock

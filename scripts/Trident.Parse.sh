@@ -61,7 +61,7 @@ ParseHeader()
 
 	if (( $( echo "scale=2; $BASHV < 4.4" | bc -l ) )); then
 	{
-    printf "Trident Parser Err: Need Bash >= v4.4 \n"
+    printf "Trident Parser Err: Need Bash >= v4.4\n"
     exit 1
   }
   fi
@@ -99,6 +99,7 @@ ParseHeader()
   fi
 
 	BIN=$( echo "scale=2; $SCALE * ( $IN / 1000 )" | bc -l)
+	CONFIG_PRN_STR=$HN.$CM.HT=$HT
 }
 
 # Reads and parses the collected trident metrics
@@ -266,8 +267,13 @@ AddPrimaryMetric()
 DeriveSecondaryMetric()
 {
 	AddSecondaryMetric "CO_INPC" "CO_INST / CO_CYCL;"
-
-	AddSecondaryMetric "CO_FACT" "( HT == 2 ) ? 2 : 4;";
+	if (( HT == 2 )); then
+		AddSecondaryMetric "CO_FACT" "2;";
+	elif (( HT == 1 )); then
+		AddSecondaryMetric "CO_FACT" "4;";
+	else
+		AddSecondaryMetric "CO_FACT" "0;";
+	fi
 	AddSecondaryMetric "CO_SLOT" "CO_FACT * CO_CYCL;"
 	AddSecondaryMetric "CO_FBND" "CO_IDNC / CO_SLOT;"
 	AddSecondaryMetric "CO_BSPC" "( CO_UISD - CO_URTD + ( CO_FACT * CO_IMRC ) ) / CO_SLOT;"
@@ -712,13 +718,13 @@ MemoryAnalysis()
 	GNUPLOT_STR+=("set rmargin 1.1;")
 	GNUPLOT_STR+=("set bmargin 0;")
 	GNUPLOT_STR+=("set lmargin 10;")
-	GNUPLOT_STR+=("set title sprintf( \"Trident Beta-v4 - Memory Access Classification\" ) offset 0,-1 tc rgb '#000099';")
+	GNUPLOT_STR+=("set title sprintf( \"Trident $VE $CONFIG_PRN_STR - Memory Access Classification\" ) offset 0,-1 tc rgb '#000099';")
 	GNUPLOT_STR+=("")
 	
 	GNUPLOT_STR+=("unset xtics;")
 	GNUPLOT_STR+=("unset ylabel;")
 	#GNUPLOT_STR+=("set label 30 \"Memory Access (Bytes)\" at graph -0.05, graph 0.2 rotate by 90 tc lt 3;")
-	GNUPLOT_STR+=("set ylabel \"Memory Acess (Bytes per sec)\" offset 2,0 tc rgb '#9966FF';")
+	GNUPLOT_STR+=("set ylabel \"Memory Acess (Bytes per sec)\" offset 1,0 tc rgb '#9966FF';")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:];")
 	GNUPLOT_STR+=("set ytics offset 0.7;")
@@ -786,7 +792,7 @@ IOAnalysis()
 	GNUPLOT_STR+=("set rmargin 6.5;")
 	GNUPLOT_STR+=("set bmargin 0;")
 	GNUPLOT_STR+=("set lmargin 10;")
-	GNUPLOT_STR+=("set title sprintf( \"Trident Beta-v4 - IO Access Classification\" ) offset 0,-1 tc rgb '#000099';")
+	GNUPLOT_STR+=("set title sprintf( \"Trident $VE $CONFIG_PRN_STR - IO Access Classification\" ) offset 0,-1 tc rgb '#000099';")
 	GNUPLOT_STR+=("")
 	
 	GNUPLOT_STR+=("unset xtics;")
@@ -795,7 +801,8 @@ IOAnalysis()
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:];")
 	GNUPLOT_STR+=("set ytics offset 0.7,0.3;")
-	GNUPLOT_STR+=("set ytics add ( \" \" 0 );")
+	#GNUPLOT_STR+=("set ytics add ( \" \" 0 );")
+	GNUPLOT_STR+=("set ytics add ( \"0\" 0 ) offset 0,0.32;" )
 	GNUPLOT_STR+=("L1=\"Transfer Rate Analysis\";")
 	#GNUPLOT_STR+=("set obj 10 rect at graph 0.125, graph $BAND_LABEL_Y size char strlen(L1)-4.5, char 1.05 fc rgb \"#50FFFFFF\" front;")
 	GNUPLOT_STR+=("set label 10 L1 at graph 0.022, graph $BAND_LABEL_Y front;")
@@ -803,7 +810,7 @@ IOAnalysis()
 
 	GNUPLOT_STR+=("set y2tics")
 	GNUPLOT_STR+=("set y2range[0:100]")
-	GNUPLOT_STR+=("set y2tics add ( \"0\" 0 ) offset 0,0.3;" )
+	GNUPLOT_STR+=("set y2tics add ( \"0\" 0 ) offset 0,0.32;" )
 	GNUPLOT_STR+=("")
 	unset PRM2;
   FindMetricLocation "IO_UTIL" "PRM2"
@@ -847,16 +854,16 @@ IOAnalysis()
 	GNUPLOT_STR+=("max=0; med=0;")
 	GNUPLOT_STR+=("stats '$PFNAME' u $((1+${PRM[ 0 ]})) nooutput;")
 	GNUPLOT_STR+=("if( STATS_max > max ) max = STATS_max;")
-	GNUPLOT_STR+=("if( STATS_median > med ) med = STATS_median;")
+	GNUPLOT_STR+=("if( STATS_median > med ) med = STATS_average;")
 	GNUPLOT_STR+=("stats '$PFNAME' u $((1+${PRM[ 1 ]})) nooutput;")
 	GNUPLOT_STR+=("if( STATS_max > max ) max = STATS_max;")
-	GNUPLOT_STR+=("if( STATS_median > med ) med = STATS_median;")
-	#GNUPLOT_STR+=("show variables all;")
-	GNUPLOT_STR+=("set yrange [0:((max+med)/$BIN)];")
-	GNUPLOT_STR+=("set ytics add ( \" \" STATS_max+10 );")
- 
+	GNUPLOT_STR+=("if( STATS_median > med ) med = STATS_average;")
+	GNUPLOT_STR+=("pymax=(10**(ceil(log10(STATS_index_max)))/$BIN)")
+	GNUPLOT_STR+=("set yrange [0:pymax];")
+	GNUPLOT_STR+=("set ytics add ( \" \" pymax );")
 	GNUPLOT_STR+=("set y2tics add ( \"0\" 0 ) offset 0,0;" )
 	GNUPLOT_STR+=("set y2tics add ( \"100\" 100 ) offset 0,-0.3;" )
+	#GNUPLOT_STR+=("show variables all;")
 
  	GNUPLOT_STR+=("plot '$PFNAME' \\")
   GNUPLOT_STR+=("$UTIL_CURVE")
@@ -884,12 +891,12 @@ CoreAnalysis()
 	GNUPLOT_STR+=("set rmargin 10;")
 	GNUPLOT_STR+=("set bmargin 0;")
 	GNUPLOT_STR+=("set lmargin 6;")
-	GNUPLOT_STR+=("set title sprintf( \"Trident Beta-v4 - Core Efficiency Classification\" ) offset 0,-1 tc rgb '#000099';")
+	GNUPLOT_STR+=("set title sprintf( \"Trident $VE $CONFIG_PRN_STR - Core Efficiency Classification\" ) offset 0,-1 tc rgb '#000099';")
 	GNUPLOT_STR+=("")
 	
 	GNUPLOT_STR+=("unset xtics;")
-	GNUPLOT_STR+=("set ylabel \"IPC\" offset 3,0 tc lt 3;")
-	GNUPLOT_STR+=("set y2label \"Unhalted Cycles Per Sec\" offset -3 tc lt 7;")
+	GNUPLOT_STR+=("set ylabel \"IPC per HT\" offset 3,0 tc lt 3;")
+	GNUPLOT_STR+=("set y2label \"Unhalted Cycles of HT Per Sec\" offset -3 tc lt 7;")
 	GNUPLOT_STR+=("set autoscale y;")
 	GNUPLOT_STR+=("set yrange [0:4];")
 	GNUPLOT_STR+=("set ytics add offset 0.7,0.3;")
@@ -969,8 +976,8 @@ CoreBackendAnalysis()
   GNUPLOT_STR+=("set rmargin 1;")
   #GNUPLOT_STR+=("set bmargin 0;")
   GNUPLOT_STR+=("set lmargin 6;")
-  GNUPLOT_STR+=("set title sprintf( \"Trident Beta-v4 - Core Backend Utilization\" ) offset 0,-1 tc rgb '#000099';")
-	GNUPLOT_STR+=("set ylabel \"Ratio of cycles the port is active\" offset 3,0 tc lt 3;")
+  GNUPLOT_STR+=("set title sprintf( \"Trident $VE $CONFIG_PRN_STR - Core Backend Utilization\" ) offset 0,-1 tc rgb '#000099';")
+	GNUPLOT_STR+=("set ylabel \"Ratio of cycles the port is active per HT\" offset 3,0 tc lt 3;")
 	GNUPLOT_STR+=("set autoscale y;")
   GNUPLOT_STR+=("set yrange [0:];")
   GNUPLOT_STR+=("set ytics 0.2;")
